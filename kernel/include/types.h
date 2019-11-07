@@ -33,6 +33,8 @@ typedef uint32_t off_t;
 typedef uint32_t size_t;
 typedef int32_t ssize_t;
 
+typedef uint8_t asid_t;
+
 #define bool _Bool
 #define false 0
 #define true 1

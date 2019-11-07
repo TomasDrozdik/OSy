@@ -3,6 +3,9 @@
 
 #include <mm/heap.h>
 
+void heap_init(void) {
+}
+
 void* kmalloc(size_t size) {
     return NULL;
 }

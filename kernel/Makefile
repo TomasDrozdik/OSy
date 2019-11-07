@@ -27,7 +27,7 @@
 -include Makefile.depend
 
 CCFLAGS = -I$(SRC_BASE)include -O2 -march=r4000 -mabi=32 -mgp32 -msoft-float -mlong32 -G 0 -mno-abicalls -fno-pic -fno-builtin -ffreestanding -nostdlib -nostdinc -pipe -Wall -Wextra -Werror -Wno-unused-parameter -Wmissing-prototypes -g3 -std=c11
-ASFLAGS = -march=r4000 -mabi=32 -mgp32 -msoft-float -mlong32 -G 0 -mno-abicalls -fno-pic -fno-builtin -ffreestanding -nostdlib -nostdinc -pipe -Wall -Wextra -Werror -Wno-unused-parameter -Wmissing-prototypes -g3 -std=c11 -I. -D__ASM__
+ASFLAGS = -I$(SRC_BASE)include -march=r4000 -mabi=32 -mgp32 -msoft-float -mlong32 -G 0 -mno-abicalls -fno-pic -fno-builtin -ffreestanding -nostdlib -nostdinc -pipe -Wall -Wextra -Werror -Wno-unused-parameter -Wmissing-prototypes -g3 -std=gnu99 -I. -D__ASM__
 LDFLAGS = -G 0 -static -g
 
 ### Kernel linker script
@@ -49,7 +49,10 @@ KERNEL_SOURCES = \
 	src/debug/mm.c \
 	src/lib/print.c \
 	src/lib/runtime.c \
-	src/mm/heap.c
+	src/mm/heap.c \
+	src/proc/context.S \
+	src/proc/scheduler.c \
+	src/proc/thread.c
 
 BOOT_SOURCES = \
 	boot/loader.S
