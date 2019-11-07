@@ -112,7 +112,7 @@ def prepare_empty_build_dir(test_name):
     return dir_name
 
 
-def run_kernel_test(test_descriptor):
+def run_kernel_test(test_descriptor, extra_arguments):
     parts = test_descriptor.split(':')
     name = parts[0]
 
@@ -128,6 +128,8 @@ def run_kernel_test(test_descriptor):
     configure_args = ['--kernel-test={}'.format(name)]
     if memory_size is not None:
         configure_args.append('--memory-size={}'.format(memory_size))
+    for i in extra_arguments['configure']:
+        configure_args.append(i)
 
     logger.info('Configuring (%s)...', ' '.join(configure_args))
     (exit_code, _) = run_command_with_logging(
@@ -198,14 +200,14 @@ def get_suite_tests(suite_filename):
             yield (parts[0], parts[1])
 
 
-def run_tests(tests):
+def run_tests(tests, extra_arguments):
     logger = logging.getLogger('run_tests')
 
     report = []
     for test in tests:
         try:
             if test['type'] == 'kernel':
-                run_kernel_test(test['name'])
+                run_kernel_test(test['name'], extra_arguments)
                 report.append({
                     'name': test['name'],
                     'status': 'passed'
@@ -263,6 +265,11 @@ def main():
                              dest='verbose',
                              action='store_true',
                              help='Be verbose.')
+    common_args.add_argument('--toolchain',
+                             default=None,
+                             dest='toolchain_dir',
+                             help='Toolchain directory.')
+
     args = argparse.ArgumentParser(description='Run NSWI004 tests')
     args.set_defaults(action='help')
     args.set_defaults(logging_level=logging.INFO)
@@ -302,6 +309,13 @@ def main():
     logging.basicConfig(format='[%(asctime)s %(name)-25s %(levelname)7s] %(message)s',
                         level=config.logging_level)
 
+    extra_arguments = {
+        'configure': [],
+    }
+    if config.toolchain_dir is not None:
+        extra_arguments['configure'].append('--toolchain')
+        extra_arguments['configure'].append(os.path.realpath(config.toolchain_dir))
+
     tests = []
     if config.action == 'kernel':
         for test in config.test_names:
@@ -319,7 +333,7 @@ def main():
     else:
         raise UnreachableCode()
 
-    report = run_tests(tests)
+    report = run_tests(tests, extra_arguments)
 
     print_report(report)
 
