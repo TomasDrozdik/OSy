@@ -14,6 +14,6 @@ void kernel_main(void);
  * The type of the symbol (a zero length array of bytes) is chosen to suggest that there
  * may be some bytes there but we do not know how many.
  */
-extern uint8_t _kernel_end [0];
+extern uint8_t _kernel_end[0];
 
 #endif
