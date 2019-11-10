@@ -8,4 +8,6 @@
 
 size_t debug_get_base_memory_size(void);
 
+uintptr_t debug_get_base_memory_endptr(void);
+
 #endif
