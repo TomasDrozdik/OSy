@@ -57,4 +57,15 @@ void* kmalloc(size_t size) {
 }
 
 void kfree(void* ptr) {
+    // TODO:
 }
+
+static inline uintptr_t align(uintptr_t ptr, size_t size) {
+    size_t remainder;
+    if ((remainder = ptr % size) == 0) {
+        return ptr;
+    }
+    return ptr - remainder + size;
+}
+
+
