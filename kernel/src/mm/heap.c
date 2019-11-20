@@ -102,6 +102,9 @@ static void heap_init(void) {
     last_alloc = start_ptr;
 }
 
+void heap_init(void) {
+}
+
 void* kmalloc(size_t size) {
     
     if (!heap_initialized) {

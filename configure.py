@@ -155,10 +155,12 @@ def main(argv):
                     config.toolchain_dir = tc_dir
                     if config.toolchain_target is None:
                         config.toolchain_target = tc_target
-    elif config.toolchain_target is None:
-        for tc_target in MIPSEL_TARGETS:
-            if has_gcc_installed(config.toolchain_dir, tc_target):
-                config.toolchain_target = tc_target
+    else:
+        config.toolchain_dir = os.path.realpath(config.toolchain_dir)
+        if config.toolchain_target is None:
+            for tc_target in MIPSEL_TARGETS:
+                if has_gcc_installed(config.toolchain_dir, tc_target):
+                    config.toolchain_target = tc_target
 
     if config.toolchain_dir is None:
         logger.critical("Failed to locate cross-compiler toolchain.")

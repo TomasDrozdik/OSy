@@ -29,6 +29,40 @@
 .endm halt
 
 /*
+ * MSIM-specific macro for entering interactive mode.
+ */
+.macro msim_stop
+    .insn
+    .word 0x29
+.endm msim_stop
+
+/*
+ * For now, dump registers and enter interactive mode on any exception.
+ */
+.macro announce_exception
+    .insn
+    .word 0x37
+    msim_stop
+.endm announce_exception
+
+/*
+ * Switch to normal exception vector (stop using BEV).
+ *
+ * Note: BEV bit is 22, status register is 12.
+ *
+ * Note: we know when this will be called so we can safely use $0 and $1.
+ */
+.macro use_normal_exception_vector
+    la $k1, ~(1 << 22)
+    mfc0 $k0, $12
+    and $k0, $k0, $k1
+    mtc0 $k0, $12
+    nop
+.endm use_normal_exception_vector
+
+
+
+/*
  * We know what whare are doing here so do not let
  * assembler change our code in any way.
  */
@@ -45,6 +79,30 @@
 .section .excvec, "ax"
 
 /*
+ * Debugging-only exception handling: enter interactive mode.
+ */
+.org   0x000
+.globl exception_tlb_refill
+.ent   exception_tlb_refill
+exception_tlb_refill:
+    announce_exception
+.end exception_tlb_refill
+
+.org   0x100
+.globl exception_cache_error
+.ent   exception_cache_error
+exception_cache_error:
+    announce_exception
+.end exception_cache_error
+
+.org   0x180
+.globl exception_general
+.ent   exception_general
+exception_general:
+    announce_exception
+.end exception_general
+
+/*
  * Kernel entry point.
  * The bootstrap loader (0x1FC00000) jumps here.
  * We only jump to the C code from here.
@@ -55,14 +113,16 @@
 .ent   start
 
 start:
-	la $sp, 0x80000400
-	la $gp, 0x80000000
-	jal kernel_main
-	nop
-	
-	/*
-	 * Again, paranoid style: this is unreachable anyway. */
-	halt
+    la $sp, 0x80000400
+    la $gp, 0x80000000
+    use_normal_exception_vector
+    jal kernel_main
+    nop
+
+    /*
+     * Again, paranoid style: this is unreachable anyway.
+     */
+    halt
 .end start
 
 /*
