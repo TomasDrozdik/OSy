@@ -4,6 +4,8 @@
 #ifndef _PROC_CONTEXT_H
 #define _PROC_CONTEXT_H
 
+#include <drivers/cp0.h>
+
 /*
  * This file is shared (as we want to keep the offsets etc. together)
  * across C sources and pure assembler sources so we use ifdefs to include
@@ -114,9 +116,63 @@ void cpu_switch_context(void** stack_top_old, void** stack_top_new, asid_t asid_
     sw $gp, 112(\base)
     sw $fp, 116(\base)
     sw $ra, 124(\base)
+
+    mflo $t0
+    mfhi $t1
+    sw $t0, 128(\base)
+    sw $t1, 132(\base)
 .endm SAVE_REGISTERS
 
+.macro SAVE_CP0_REGISTERS base temp
+    mfc0 \temp, $REG_CP0_EPC
+    sw \temp, 0(\base)
+    mfc0 \temp, $REG_CP0_CAUSE
+    sw \temp, 4(\base)
+    mfc0 \temp, $REG_CP0_BADVADDR
+    sw \temp, 8(\base)
+    mfc0 \temp, $REG_CP0_STATUS
+    sw \temp, 12(\base)
+.endm SAVE_CP0_REGISTERS
+
+.macro LOAD_CP0_REGISTERS base temp
+    lw \temp, 0(\base)
+    mtc0 \temp, $REG_CP0_EPC
+    //lw \temp, 4(\base)
+    //mtc0 \temp, $REG_CP0_CAUSE
+    //lw \temp, 8(\base)
+    //mtc0 \temp, $REG_CP0_BADVADDR
+    lw \temp, 12(\base)
+    mtc0 \temp, $REG_CP0_STATUS
+.endm SAVE_CP0_REGISTERS
+
+.macro COPY_CP0_REGISTERS_TO_CONTEXT from_base to_base temp
+    lw \temp, 0(\from_base)
+    sw \temp, 136(\to_base)
+    lw \temp, 4(\from_base)
+    sw \temp, 140(\to_base)
+    lw \temp, 8(\from_base)
+    sw \temp, 144(\to_base)
+    lw \temp, 12(\from_base)
+    sw \temp, 152(\to_base)
+.endm COPY_CP0_REGISTERS
+
+.macro COPY_CP0_REGISTERS_FROM_CONTEXT from_base to_base temp
+    lw \temp, 136(\from_base)
+    sw \temp, 0(\to_base)
+    lw \temp, 140(\from_base)
+    sw \temp, 4(\to_base)
+    lw \temp, 144(\from_base)
+    sw \temp, 8(\to_base)
+    lw \temp, 152(\from_base)
+    sw \temp, 12(\to_base)
+.endm COPY_CP0_REGISTERS
+
 .macro LOAD_REGISTERS base
+    lw $t0, 128($sp)
+    lw $t1, 132($sp)
+    mtlo $t0
+    mthi $t1
+
     lw $ra, 124(\base)
     lw $fp, 116(\base)
     lw $gp, 112(\base)
