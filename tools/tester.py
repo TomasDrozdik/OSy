@@ -172,12 +172,18 @@ def run_kernel_test(test_descriptor, extra_arguments):
     if exit_code != 0:
         raise TesterException('MSIM execution failed', 'see msim.log')
 
-    found_test_passed = False
-    for line in output:
-        if line == 'Test passed.':
-            found_test_passed = True
-            break
-    if not found_test_passed:
+    shall_panic = '[ ENDS WITH PANIC ]' in output
+    if shall_panic:
+        actually_panicked = False
+        for line in output:
+            if 'Kernel panic' in line:
+                actually_panicked = True
+                break
+        if not actually_panicked:
+            raise TesterException('test failed (not panicked)', 'see msim.log')
+
+    test_passed = 'Test passed.' in output
+    if (shall_panic and test_passed) or (not test_passed and not shall_panic):
         raise TesterException('test failed', 'see msim.log')
 
     logger.info('Checking test output ...')
