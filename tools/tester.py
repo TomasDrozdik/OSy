@@ -6,6 +6,7 @@
 
 import argparse
 import logging
+import json
 import multiprocessing
 import os
 import re
@@ -269,6 +270,10 @@ def main():
                              default=None,
                              dest='toolchain_dir',
                              help='Toolchain directory.')
+    common_args.add_argument('--json-report',
+                             default=None,
+                             dest='json_report',
+                             help='Where to store report as JSON.')
 
     args = argparse.ArgumentParser(description='Run NSWI004 tests')
     args.set_defaults(action='help')
@@ -336,6 +341,13 @@ def main():
     report = run_tests(tests, extra_arguments)
 
     print_report(report)
+
+    if config.json_report is not None:
+        json_report = {
+            'tests': report
+        }
+        with open(config.json_report, 'w') as f:
+            f.write(json.dumps(json_report, sort_keys=True, indent=4) + "\n")
 
     return 0 if all_tests_passed(report) else 1
 
