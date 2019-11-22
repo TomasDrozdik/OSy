@@ -112,23 +112,28 @@ def prepare_empty_build_dir(test_name):
     os.mkdir(dir_name)
     return dir_name
 
-
-def run_kernel_test(test_descriptor, extra_arguments):
+def parse_test_config(test_descriptor):
     parts = test_descriptor.split(':')
     name = parts[0]
+    extras = {
+        'memory_size': None,
+    }
+    for i in parts[1:]:
+        if i.startswith('m'):
+            extras['memory_size'] = int(i[1:])
 
-    if (len(parts) > 1) and parts[1].startswith('m'):
-        memory_size = int(parts[1][1:])
-    else:
-        memory_size = None
+    return ( name, extras )
+
+def run_kernel_test(test_descriptor, extra_arguments):
+    ( name, parameters ) = parse_test_config(test_descriptor)
 
     logger = logging.getLogger('K/{}'.format(name))
     build_dir = prepare_empty_build_dir('kernel/{}'.format(test_descriptor))
     logger.debug('Will use build directory %s.', build_dir)
 
     configure_args = ['--kernel-test={}'.format(name)]
-    if memory_size is not None:
-        configure_args.append('--memory-size={}'.format(memory_size))
+    if parameters['memory_size'] is not None:
+        configure_args.append('--memory-size={}'.format(parameters['memory_size']))
     for i in extra_arguments['configure']:
         configure_args.append(i)
 
