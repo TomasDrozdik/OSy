@@ -33,12 +33,6 @@ static void heap_init(void);
  */
 static inline uintptr_t align(uintptr_t ptr, size_t size);
 
-static void heap_init(void) {
-    start_ptr = align((uintptr_t)&_kernel_end, 4);
-    end_ptr = debug_get_base_memory_endptr();
-    bump_ptr = start_ptr;
-}
-
 void* kmalloc(size_t size) {
     // TODO: this is just simple bump pointer implementation described in
     // assignment description. Update this to more sophisticated one.
@@ -60,11 +54,20 @@ void kfree(void* ptr) {
     // TODO:
 }
 
+static void heap_init(void) {
+    start_ptr = align((uintptr_t)&_kernel_end, 4);
+    end_ptr = debug_get_base_memory_endptr();
+    bump_ptr = start_ptr;
+}
+
 static inline uintptr_t align(uintptr_t ptr, size_t size) {
     size_t remainder;
-    if ((remainder = ptr % size) == 0) {
+
+    remainder = ptr % size;
+    if (remainder == 0) {
         return ptr;
     }
+
     return ptr - remainder + size;
 }
 
