@@ -6,6 +6,8 @@
 
 #include <types.h>
 
+uintptr_t debug_get_kernel_endptr(void);
+
 size_t debug_get_base_memory_size(void);
 
 uintptr_t debug_get_base_memory_endptr(void);
