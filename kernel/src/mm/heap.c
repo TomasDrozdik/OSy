@@ -1,54 +1,68 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2019 Charles University
 
+#include <adt/list.h>
 #include <debug/mm.h>
-#include <main.h>
 #include <mm/heap.h>
 #include <lib/print.h>
 
-//Structure representing a block of memory.
-typedef struct block {
-    size_t size;
-    struct block* next;
-    struct block* previous;
-} block_t;
+#include <lib/print.h>
 
-#define BLOCK_SIZE 4
+/** Minimal size of an allocated payload.
+ *  Anything below this size is increased to it.
+ */
+#define MIN_ALLOCATION_SIZE 4
 
-#define BLOCK_MEM(ptr) ((void*)((unsigned long)ptr + sizeof(block_t)))
-#define BLOCK_HEADER(ptr) ((void*)((unsigned long)ptr - sizeof(block_t)))
+/** Checks if given link valid i.e. not head of the list.
+ *
+ *  Explanation: Head of the list does not contain block_header structure.
+ *
+ * @param LINKPTR Pointer to link structure.
+ * @returns True if valid, false otherwise.
+ */
+#define VALID_HEADER_LINK(LINKPTR) (LINKPTR != &blocks.head)
 
-//Pointer to the beginning of the list, holding all blocks of free space
-//Inspired by https://github.com/andrestc/linux-prog/blob/master/ch7/malloc.c
-static block_t* free_list_head = NULL;
+/** Gets pointer to the header of a block whith the corresponding payload.
+ *
+ * @param PTR Pointer to payload, i.e. returned by kmalloc.
+ * @returns Pointer to block_header_t of given block.
+ */
+#define HEADER_FROM_PAYLOAD(PTR) ((block_header_t*)((uintptr_t)PTR - sizeof(block_header_t)))
 
-static uintptr_t last_alloc;
+/** Gets pointer to the payload of a block from givne payload link.
+ *
+ * @param PTR Pointer to payload, i.e. returned by kmalloc.
+ * @returns Pointer to block_header_t of given block.
+ */
+#define PAYLOAD_FROM_HEADER(HEADERPTR) ((void*)((uintptr_t)HEADERPTR + sizeof(block_header_t)))
+
+/** Get the pointer to the block_header structure from given link pointer.
+ *
+ * @param LINKPTR Pointer to link_t.
+ * @returns Pointer to block_header.
+*/
+#define HEADER_FROM_LINK(LINKPTR) list_item( \
+        LINKPTR, block_header_t, link)
 
 /** Indicates if heap_init has been called. */
 static bool heap_initialized = false;
 
-/** Poiter to the start of the available memory. */
-static uintptr_t start_ptr;
+/** List of all blocks in heap. */
+static list_t blocks;
 
-/** Poiter to the end of the available memory. */
-static uintptr_t end_ptr;
-
-block_t* split(block_t* block, size_t size);
-
-void free_list_remove(block_t* block);
-
-void free_list_add(block_t* block);
-
-void defragment_list(void);
-
-void stats(char* prefix);
+/** Each block has a header which contains its size, free flag and link which
+ *  links it to all othe blocks.
+ */
+typedef struct block_header {
+    size_t size;
+    bool free;
+    link_t link;
+} block_header_t;
 
 /** Initialized heap.
- * Uses _kernel_end to locate end of the kernel then function
- * debug_get_base_memory_endptr to get the pointer to the end of the continuous
- * address space following end of kernel.
  *
- * Initialized globals @start_ptr, @end_ptr and @bump_ptr.
+ * Uses pointer to kernel end and size of the available memory to determine
+ * pointer to the end of available memory i.e. heap.
  */
 static void heap_init(void);
 
@@ -59,161 +73,137 @@ static void heap_init(void);
  */
 static inline uintptr_t align(uintptr_t ptr, size_t size);
 
-//Removes a block from the list
-void free_list_remove(block_t* block) {
-    if (!block->previous) {
-        if (block->next) {
-            free_list_head = block->next;
-		} else {
-            free_list_head = NULL;
-		}
-    } else {
-        block->next->previous = block->previous;
-        if(block->next){block->previous->next = block->next;}
-	}
-}
+static void debug_print_block_list(list_t* blocks) {
+    dprintk("%pL\n", blocks);
 
-//Adds a block to the list, list stays sorted by the blocks' begin address.
-void free_list_add(block_t* block) {
-    block->next = NULL;
-    block->previous = NULL;
-
-    if (!free_list_head || (unsigned long)free_list_head > (unsigned long)block) {
-        if (free_list_head) {
-            free_list_head->previous = block;
-		}
-        block->next = free_list_head;
-        free_list_head = block;
-    } else {
-        block_t* current = free_list_head;
-        while (current->next&&(unsigned long)current->next<(unsigned long)block) {
-            current = current->next;
-        }
-        block->next = current->next;
-        current->next = block;
-        block->previous = current;
-        block->next->previous = block;
-	}
-}
-
-static void heap_init(void) {
-    start_ptr = align((uintptr_t)&_kernel_end, BLOCK_SIZE);
-    end_ptr = debug_get_base_memory_endptr();
-    last_alloc = start_ptr;
+    list_foreach(*blocks, block_header_t, link, header) {
+        dprintk(
+                "\th[p: %p, size: %u, free: %u, link->prev: %p, link->next: %p] ->\n",
+                &header->link, header->size, header->free, header->link.prev,
+                header->link.next);
+    }
 }
 
 void heap_init(void) {
 }
 
 void* kmalloc(size_t size) {
-    
     if (!heap_initialized) {
         heap_init();
         heap_initialized = true;
     }
-    
-    // Check if the size requested is actually valid.
-    if (size>end_ptr-start_ptr) {
-        return NULL;
+
+    size = align(size, MIN_ALLOCATION_SIZE);
+    size_t actual_size = size + sizeof(block_header_t);
+
+    dprintk("Searching for block of size %u, actual size %u\n", size, actual_size);
+
+    list_foreach(blocks, block_header_t, link, header) {
+        if (header->free) {
+            if (header->size == actual_size) {
+
+                dprintk("Header[%p] exact size found\n", &header->link);
+
+                header->free = false;
+
+                debug_print_block_list(&blocks);
+                dprintk("Returning pointer %p\n\n", PAYLOAD_FROM_HEADER(header));
+
+                return PAYLOAD_FROM_HEADER(header);
+            } else if (header->size >= actual_size + sizeof(block_header_t)
+                            + MIN_ALLOCATION_SIZE) {
+
+                dprintk("Header[%p] sufficient size found\n", &header->link);
+
+                // Create new header inside of this memory block, with new
+                // header as a free one and this one would serve as allocated
+                // block for requested size.
+                block_header_t* new_header = (block_header_t*)((uintptr_t)header + actual_size);
+                new_header->size = header->size - actual_size;
+                header->size = actual_size;
+
+                new_header->free = true;
+                header->free = false;
+
+                list_add(&header->link, &new_header->link);
+
+                debug_print_block_list(&blocks);
+                dprintk("Returning pointer %p\n\n", PAYLOAD_FROM_HEADER(header));
+
+                return PAYLOAD_FROM_HEADER(header);
+            } else {
+                dprintk("Requested size %u is less than minimal size %u\n",
+                        actual_size,
+                        actual_size + sizeof(block_header_t) + MIN_ALLOCATION_SIZE);
+            }
+        }
     }
-
-    block_t* best = NULL;
-	block_t* current = free_list_head;
-    while (current->next) {
-		if (current->size >= size) {
-			//found a perfectly sized block
-            if (current->size == size) {
-				return BLOCK_MEM(current);
-			}
-            if (!best||best->size>current->size) {
-                best = current;
-			}
-		}
-		current = current->next;
-    }
-    if (best) {
-		free_list_remove(best);
-	}
-
-	//if the smallest block is still bigger than required, split it.
-    if (best && best->size > size) {
-        block_t* newblock = split(best, size);
-        free_list_add(newblock);
-	}
-
-	//Free_list doesnt have a sufficient block.Raise end memory pointer;
-    if (!best) {
-		if (last_alloc + size <= end_ptr) {
-            uintptr_t ptr = last_alloc;
-			last_alloc = align(last_alloc + size, BLOCK_SIZE);
-            return (void*)ptr;
-		}
-		return NULL;
-	}
-	return BLOCK_MEM(best);
+    dprintk("Requested size not found\n");
+    debug_print_block_list(&blocks);
+    dprintk("\n\n");
+    return NULL;
 }
 
 void kfree(void* ptr) {
-    free_list_add(BLOCK_HEADER(ptr));
-    stats("Before defrag.");
-    defragment_list();
-}
+    block_header_t* header = HEADER_FROM_PAYLOAD(ptr);
+    assert(header->free == false);
 
-//Defragments the list,a.k.a. if two blocks are continuosly addressed, it will merge them.
-void defragment_list(void) {
+    dprintk("Freeing pointer %p cooresponding to link %p\n",
+            ptr, &header->link);
 
-	block_t* current = free_list_head;
+    header->free = true;
 
-    while (current->next) {
-		if (current + current->size + sizeof(block_t) == current->next) {
-            current->size += current->next->size + sizeof(block_t);
-			current->next = current->next->next;
-            if (current->next) {
-				current->next->previous = current;
-                continue;
-			} else {
-                break;
-			}
-		}
-        current = current->next;
+    // Compacting with next
+    link_t* next_link = header->link.next;
+    if (VALID_HEADER_LINK(next_link)) {
+        block_header_t* next_header = HEADER_FROM_LINK(next_link);
+        if (next_header->free) {
+            header->size += next_header->size;
+            list_remove(next_link);
+        }
     }
-    stats("After merge");
 
-	if (align((uintptr_t)current + current->size+sizeof(block_t), BLOCK_SIZE) == last_alloc) {
-        last_alloc = align(last_alloc - current->size, BLOCK_SIZE);
-		free_list_remove(current);
-	}
-}
-
-//splits the memory block, so malloc only allocates required memory, rest is added to the free list.
-block_t* split(block_t* block, size_t size) {
-
-    void* memory_block = BLOCK_MEM(block);
-    block_t* ptr = (block_t*)((unsigned long)memory_block + size);
-    ptr->size = block->size - (size + sizeof(block_t));
-    block->size = size;
-    return ptr;
-}
-
-//Debug info
-void stats(char* prefix) {
-    printk("[%s] program break: %p\n", prefix, last_alloc);
-    block_t* ptr = free_list_head;
-    printk("[%s] free list: \n", prefix);
-    int c = 0;
-    while (ptr) {
-        printk("(%d) <%p> (size: %d)\n", c, ptr, ptr->size);
-        ptr = ptr->next;
-        c++;
+    // Compacting with prev
+    link_t* prev_link = header->link.prev;
+    if (VALID_HEADER_LINK(prev_link)) {
+        block_header_t* prev_header = HEADER_FROM_LINK(header->link.prev);
+        if (prev_header->free) {
+            prev_header->size += header->size;
+            list_remove(&header->link);
+        }
     }
+
+    debug_print_block_list(&blocks);
+    dprintk("\n\n");
+}
+
+static void heap_init(void) {
+    list_init(&blocks);
+
+    dprintk("KERNEL_END = %p\n", (void*)debug_get_kernel_endptr());
+    dprintk("INIT: &blocks = %p\n", &blocks);
+
+    uintptr_t start_ptr = align(debug_get_kernel_endptr(), MIN_ALLOCATION_SIZE);
+    block_header_t* initial_header = (block_header_t*)start_ptr;
+    initial_header->size = debug_get_base_memory_size();
+    initial_header->free = true;
+
+    volatile size_t* endptr = (size_t*)(start_ptr + initial_header->size);
+    *endptr = 0xdeadbeef;
+    assert(*endptr == 0xdeadbeef);
+    dprintk("*ENDPTR = %X\n", *endptr);
+
+    list_append(&blocks, &initial_header->link);
+
+    debug_print_block_list(&blocks);
+    dprintk("\n\n");
 }
 
 static inline uintptr_t align(uintptr_t ptr, size_t size) {
     size_t remainder;
-    if ((remainder = ptr % size) == 0) {
+    remainder = ptr % size;
+    if (remainder == 0) {
         return ptr;
     }
     return ptr - remainder + size;
 }
-
-
