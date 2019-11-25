@@ -20,7 +20,7 @@ void fputs(const char* s);
 void puts(const char* s);
 
 /** Prints given formatted string to console.
- * Supported printf formats: %c, %d, %u, %s, %x, %X.
+ * Supported printf formats: %c, %d, %u, %s, %x, %X, %p, %pL
  * @param format printf-style formatting string.
  */
 void printk(const char* format, ...);
