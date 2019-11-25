@@ -1,9 +1,9 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2019 Charles University
 
+#include <adt/list.h>
 #include <debug/mm.h>
 #include <mm/heap.h>
-#include <adt/list.h>
 
 #include <lib/print.h>
 
@@ -26,17 +26,14 @@
  * @param PTR Pointer to payload, i.e. returned by kmalloc.
  * @returns Pointer to block_header_t of given block.
  */
-#define HEADER_FROM_PAYLOAD(PTR) ((block_header_t*) \
-    ((uintptr_t)PTR - sizeof (block_header_t)))
+#define HEADER_FROM_PAYLOAD(PTR) ((block_header_t*)((uintptr_t)PTR - sizeof(block_header_t)))
 
 /** Gets pointer to the payload of a block from givne payload link.
  *
  * @param PTR Pointer to payload, i.e. returned by kmalloc.
  * @returns Pointer to block_header_t of given block.
  */
-#define PAYLOAD_FROM_HEADER(HEADERPTR) ((void *) \
-    ((uintptr_t)HEADERPTR + sizeof (block_header_t)))
-
+#define PAYLOAD_FROM_HEADER(HEADERPTR) ((void*)((uintptr_t)HEADERPTR + sizeof(block_header_t)))
 
 /** Get the pointer to the block_header structure from given link pointer.
  *
@@ -44,7 +41,7 @@
  * @returns Pointer to block_header.
 */
 #define HEADER_FROM_LINK(LINKPTR) list_item( \
-    LINKPTR, block_header_t, link)
+        LINKPTR, block_header_t, link)
 
 /** Indicates if heap_init has been called. */
 static bool heap_initialized = false;
@@ -76,11 +73,11 @@ static void heap_init(void);
 static inline uintptr_t align(uintptr_t ptr, size_t size);
 
 static void debug_print_block_list(list_t* blocks) {
-	dprintk("%pL\n", blocks);
+    dprintk("%pL\n", blocks);
 
     list_foreach(*blocks, block_header_t, link, header) {
         dprintk(
-        "\th[p: %p, size: %u, free: %u, link->prev: %p, link->next: %p] ->\n",
+                "\th[p: %p, size: %u, free: %u, link->prev: %p, link->next: %p] ->\n",
                 &header->link, header->size, header->free, header->link.prev,
                 header->link.next);
     }
@@ -93,11 +90,11 @@ void* kmalloc(size_t size) {
     }
 
     size = align(size, MIN_ALLOCATION_SIZE);
-    size_t actual_size = size + sizeof (block_header_t);
+    size_t actual_size = size + sizeof(block_header_t);
 
     dprintk("Searching for block of size %u, actual size %u\n", size, actual_size);
 
-    list_foreach (blocks, block_header_t, link, header) {
+    list_foreach(blocks, block_header_t, link, header) {
         if (header->free) {
             if (header->size == actual_size) {
 
@@ -109,16 +106,15 @@ void* kmalloc(size_t size) {
                 dprintk("Returning pointer %p\n\n", PAYLOAD_FROM_HEADER(header));
 
                 return PAYLOAD_FROM_HEADER(header);
-            } else if  (header->size >= actual_size + sizeof (block_header_t)
-                    + MIN_ALLOCATION_SIZE) {
+            } else if (header->size >= actual_size + sizeof(block_header_t)
+                            + MIN_ALLOCATION_SIZE) {
 
                 dprintk("Header[%p] sufficient size found\n", &header->link);
 
                 // Create new header inside of this memory block, with new
                 // header as a free one and this one would serve as allocated
                 // block for requested size.
-                block_header_t* new_header = (block_header_t*)
-                        ((uintptr_t)header + actual_size);
+                block_header_t* new_header = (block_header_t*)((uintptr_t)header + actual_size);
                 new_header->size = header->size - actual_size;
                 header->size = actual_size;
 
@@ -134,7 +130,7 @@ void* kmalloc(size_t size) {
             } else {
                 dprintk("Requested size %u is less than minimal size %u\n",
                         actual_size,
-                        actual_size + sizeof (block_header_t) + MIN_ALLOCATION_SIZE);
+                        actual_size + sizeof(block_header_t) + MIN_ALLOCATION_SIZE);
             }
         }
     }
@@ -188,7 +184,7 @@ static void heap_init(void) {
     initial_header->size = debug_get_base_memory_size();
     initial_header->free = true;
 
-    volatile size_t *endptr = (size_t*)(start_ptr + initial_header->size);
+    volatile size_t* endptr = (size_t*)(start_ptr + initial_header->size);
     *endptr = 0xdeadbeef;
     assert(*endptr == 0xdeadbeef);
     dprintk("*ENDPTR = %X\n", *endptr);

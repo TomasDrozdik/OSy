@@ -25,6 +25,5 @@ void kernel_test(void) {
 
     ktest_assert(tmp == ptr, "Weird assignment methodology.");
 
-
     ktest_passed();
 }

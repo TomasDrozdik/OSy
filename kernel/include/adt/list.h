@@ -235,7 +235,6 @@ static inline void list_add(link_t* add_after, link_t* item) {
     add_before->prev = item;
 }
 
-
 /** Remove an item from a list
  *
  * Remove an item from any list it is currently part of.

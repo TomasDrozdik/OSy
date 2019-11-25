@@ -31,7 +31,7 @@ uintptr_t debug_get_base_memory_endptr(void) {
     size_t shift_ammount = 1024 / sizeof(addr);
 
     // To store original value.
-	uintptr_t prev_value;
+    uintptr_t prev_value;
 
     while (true) {
         addr += shift_ammount;

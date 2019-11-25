@@ -17,7 +17,7 @@
 void kernel_test(void) {
     ktest_start("heap/basic");
 
-    void *ptr;
+    void* ptr;
     for (size_t size = 0; size < MAX_ALLOC_SIZE; size += ALIGN_SIZE) {
         for (size_t misaligned = 0; misaligned < ALIGN_SIZE; ++misaligned) {
             size_t actual_size = size + misaligned;
