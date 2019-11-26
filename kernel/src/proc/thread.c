@@ -17,6 +17,7 @@ static void thread_entry_func_wrapper(void);
  * Called once at system boot.
  */
 void threads_init(void) {
+
 }
 
 /** Create a new thread.
@@ -103,9 +104,10 @@ void thread_finish(void* retval) {
     scheduler_remove_current_thread();
     scheduler_schedule_next();
 
-    // Noreturn function
+    // Noreturn functionw
     while (1);
 }
+
 
 /** Tells if thread already called thread_finish() or returned from the entry
  * function.
@@ -113,7 +115,7 @@ void thread_finish(void* retval) {
  * @param thread Thread in question.
  */
 bool thread_has_finished(thread_t* thread) {
-    return thread->state == FINISHED;
+    return false;
 }
 
 /** Wakes-up existing thread.
