@@ -5,10 +5,10 @@
 #include <proc/scheduler.h>
 #include <adt/list.h>
 
-#define INITIAL_QUEUE_SIZE 10
-
 #define INDEX_OF(ITEMPTR, ARRAYPTR) \
     ((size_t)(((uintptr_t)ITEMPTR - (uintptr_t)ARRAYPTR) / sizeof(*ARRAYPTR)))
+
+#define THREAD_POOL_SIZE 100
 
 static size_t queue_size;
 static queue_item_t* current_thread;
@@ -31,21 +31,9 @@ typedef struct queue_item {
     thread_state_t state;
 } queue_item_t;
 
-/** Double the size of the thread_queue, free_indices_stack and correct pointers
- *  in link.
- *
- *  This happens when there are no free indices in thread_queue.
- *
- *  First thread_queue size is doubled and values are copied to new array.
- *
- *  Then free_indices_stack is also doubled and half of it is filled with new
- *  free indices i.e. upper half of thread_queue indices.
- *
- *  Finally since all queue_item structures have been reallocated we have to
- *  reinitialize the array and whole first half thread_queue to it.
- *
- *  Furthermore all globals corresponding to mentioned data structures need
- *  correction.
+
+/** Increases the size of preallocated space according to external size of the
+ *  thread pool.
  */
 static void resize();
 
@@ -54,7 +42,7 @@ static void resize();
  * Called once at system boot.
  */
 void scheduler_init(void) {
-    queue_size = INITIAL_QUEUE_SIZE;
+    queue_size = THREAD_POOL_SIZE;
     schedule_pool = (typeof(schedule_pool))
             kmalloc(sizeof(queue_item_t) * queue_size);
 
@@ -118,7 +106,9 @@ void scheduler_remove_thread(thread_t* thread) {
 }
 
 void scheduler_remove_current_thread() {
-
+    list_remove(&current_thread->link);
+    free_indices_stack[++free_indices_stack_top] =
+            INDEX_OF(current_thread, schedule_pool);
 }
 
 /** Suspends given thread in scheduling.
@@ -148,6 +138,7 @@ void scheduler_schedule_next(void) {
     }
 
     current_thread = list_item(current_thread->link.next, queue_item_t, link);
+
     // TODO: switch context
 }
 
@@ -155,6 +146,22 @@ inline thread_t* scheduler_get_running_thread() {
     return (current_thread == NULL) ? NULL : current_thread->thread;
 }
 
+/** Double the size of the thread_queue, free_indices_stack and correct pointers
+ *  in link.
+ *
+ *  This happens when there are no free indices in thread_queue.
+ *
+ *  First thread_queue size is doubled and values are copied to new array.
+ *
+ *  Then free_indices_stack is also doubled and half of it is filled with new
+ *  free indices i.e. upper half of thread_queue indices.
+ *
+ *  Finally since all queue_item structures have been reallocated we have to
+ *  reinitialize the array and whole first half thread_queue to it.
+ *
+ *  Furthermore all globals corresponding to mentioned data structures need
+ *  correction.
+ */
 static void resize() {
     // TODO:
     panic();

@@ -6,8 +6,6 @@
 #include <proc/thread.h>
 #include <adt/list.h>
 
-#define INITIAL_SIZE 10
-
 /** Initialize support for threading.
  *
  * Called once at system boot.
@@ -33,7 +31,7 @@ void threads_init(void) {
  * @retval INVAL Invalid flags (unused).
  */
 errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* data, unsigned int flags, const char* name) {
-
+    
     return ENOIMPL;
 }
 
@@ -66,8 +64,8 @@ void thread_suspend(void) {
  * @param retval Data to return in thread_join.
  */
 void thread_finish(void* retval) {
-    while (1) {
-    }
+    thread_t* current_thread = thread_get_current();
+    current_thread->retval = retval;
 }
 
 /** Tells if thread already called thread_finish() or returned from the entry
@@ -76,7 +74,7 @@ void thread_finish(void* retval) {
  * @param thread Thread in question.
  */
 bool thread_has_finished(thread_t* thread) {
-    return false;
+    return thread->state == FINISHED;
 }
 
 /** Wakes-up existing thread.
@@ -110,7 +108,11 @@ errno_t thread_wakeup(thread_t* thread) {
  * @retval EINVAL Invalid thread.
  */
 errno_t thread_join(thread_t* thread, void** retval) {
-    return ENOIMPL;
+    while (thread->state != FINISHED) {
+        thread_yield();
+    }
+    *retval = thread->retval;
+    return EOK;
 }
 
 /** Switch CPU context to a different thread.
