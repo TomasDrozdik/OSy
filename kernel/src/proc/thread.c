@@ -4,6 +4,9 @@
 #include <proc/context.h>
 #include <proc/scheduler.h>
 #include <proc/thread.h>
+#include <adt/list.h>
+
+#define INITIAL_SIZE 10
 
 /** Initialize support for threading.
  *
@@ -30,6 +33,7 @@ void threads_init(void) {
  * @retval INVAL Invalid flags (unused).
  */
 errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* data, unsigned int flags, const char* name) {
+
     return ENOIMPL;
 }
 
@@ -38,15 +42,17 @@ errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* da
  * @retval NULL When no thread was started yet.
  */
 thread_t* thread_get_current(void) {
-    return NULL;
+    return scheduler_get_running_thread();
 }
 
 /** Yield the processor. */
 void thread_yield(void) {
+    scheduler_schedule_next();
 }
 
 /** Current thread stops execution and is not scheduled until woken up. */
 void thread_suspend(void) {
+    scheduler_suspend_current_thread();
 }
 
 /** Terminate currently running thread.

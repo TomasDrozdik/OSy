@@ -101,6 +101,17 @@
                      _link != &(list).head; \
                 _link = _link->next)
 
+/** Checks if given link valid i.e. not head of the list.
+ *
+ *  Explanation: Head of the list is not contained within a structure.
+ *
+ * @param list List object.
+ * @param linkptr Pointer to link structure.
+ *
+ * @returns True if valid, false otherwise.
+ */
+#define valid_link(list, linkptr) (linkptr != &list.head)
+
 /** Polymorphic list link
  *
  */

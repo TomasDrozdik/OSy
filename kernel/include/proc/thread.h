@@ -28,7 +28,8 @@ struct thread {
 };
 
 void threads_init(void);
-errno_t thread_create(thread_t** thread, thread_entry_func_t entry, void* data, unsigned int flags, const char* name);
+errno_t thread_create(thread_t** thread, thread_entry_func_t entry, void* data,
+        unsigned int flags, const char* name);
 thread_t* thread_get_current(void);
 void thread_yield(void);
 void thread_suspend(void);
