@@ -25,6 +25,7 @@ typedef struct thread thread_t;
 struct thread {
     char name[THREAD_NAME_MAX_LENGTH + 1];
     thread_entry_func_t entry_func;
+    void* stack_top;
 };
 
 void threads_init(void);

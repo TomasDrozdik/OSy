@@ -13,6 +13,7 @@
  * Called once at system boot.
  */
 void threads_init(void) {
+
 }
 
 /** Create a new thread.
@@ -33,8 +34,22 @@ void threads_init(void) {
  * @retval INVAL Invalid flags (unused).
  */
 errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* data, unsigned int flags, const char* name) {
+    
+	void* mem = kmalloc(THREAD_STACK_SIZE + sizeof(thread_t));
 
-    return ENOIMPL;
+	//Check if we got the memory allocated
+    if (mem == NULL)
+        return ENOMEM;
+
+    *thread_out = (thread_t*)mem;
+
+	**thread_out->stack_top = ((void*)((uintptr_t)mem + sizeof(thread_t) + CONTEXT_SIZE));
+	**thread_out->name = name;
+	**thread_out->entry_func = entry;
+    
+	scheduler_add_ready_thread(**thread_out);
+
+    return EOK;
 }
 
 /** Return information about currently executing thread.
@@ -121,4 +136,10 @@ errno_t thread_join(thread_t* thread, void** retval) {
  * @param thread Thread to switch to.
  */
 void thread_switch_to(thread_t* thread) {
+    thread_t* current = thread_get_current();
+    if (current == NULL) {
+    
+	} else {
+		cpu_switch_context(current->stack_top, thread->stack_top, 1);
+	}
 }
