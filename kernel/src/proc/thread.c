@@ -81,9 +81,17 @@ void thread_suspend(void) {
  * @param retval Data to return in thread_join.
  */
 void thread_finish(void* retval) {
-    while (1) {
-    }
+    thread_t* current_thread = thread_get_current();
+    current_thread->state = FINISHED;
+    current_thread->retval = retval;
+
+    scheduler_remove_current_thread();
+    scheduler_schedule_next();
+
+    // Noreturn functionw
+    while (1);
 }
+
 
 /** Tells if thread already called thread_finish() or returned from the entry
  * function.
