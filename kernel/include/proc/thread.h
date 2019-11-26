@@ -20,17 +20,25 @@
 /** Thread entry function as you know from pthreads. */
 typedef void* (*thread_entry_func_t)(void*);
 
+/** State of a thread in a scheduler. */
+typedef enum thread_state {
+    READY,
+    SUSPENDED,
+    FINISHED,
+} thread_state_t;
+
 /** Information about any existing thread. */
 typedef struct thread thread_t;
 struct thread {
     char name[THREAD_NAME_MAX_LENGTH + 1];
     thread_entry_func_t entry_func;
+    thread_state_t state;
     void* stack_top;
+    void* retval;
 };
 
 void threads_init(void);
-errno_t thread_create(thread_t** thread, thread_entry_func_t entry, void* data,
-        unsigned int flags, const char* name);
+errno_t thread_create(thread_t** thread, thread_entry_func_t entry, void* data, unsigned int flags, const char* name);
 thread_t* thread_get_current(void);
 void thread_yield(void);
 void thread_suspend(void);
