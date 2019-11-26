@@ -1,10 +1,16 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2019 Charles University
 
+#include <lib/print.h>
 #include <proc/context.h>
 #include <proc/scheduler.h>
 #include <proc/thread.h>
 #include <adt/list.h>
+#include <mm/heap.h>
+
+/** Wraps the thread_entry_function so that it always calls finish.
+ */
+static void thread_entry_func_wrapper(void);
 
 /** Initialize support for threading.
  *
@@ -20,6 +26,9 @@ void threads_init(void) {
  * This function allocates space for both stack and the thread_t structure
  * (hence the double <code>**</code> in <code>thread_out</code>.
  *
+ * WARNIGN: Caller is responsible for freeing this pointer after the thread
+ *          finishes and caller has dealt with return value if need be.
+ *
  * @param thread_out Where to place the initialized thread_t structure.
  * @param entry Thread entry function.
  * @param data Data for the entry function.
@@ -31,8 +40,31 @@ void threads_init(void) {
  * @retval INVAL Invalid flags (unused).
  */
 errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* data, unsigned int flags, const char* name) {
-    // TODO:
-    return ENOIMPL;
+    // Allocate enought memory for stack and thread_t structure.
+    // No heap is available.
+    thread_t* thread = (thread_t*)kmalloc(sizeof(thread_t) + THREAD_STACK_SIZE);
+    if (thread == NULL) {
+        return ENOMEM;
+    }
+
+    // Set up thread_t structure.
+    strncpy((char*)thread->name, name, THREAD_NAME_MAX_LENGTH);
+    thread->entry_func = entry;
+    thread->data = data;
+    thread->state = READY;
+    thread->stack_top = (unative_t)
+            ((uintptr_t)thread + sizeof(thread_t) + THREAD_STACK_SIZE);
+    *thread_out = thread;
+
+    // Set up stack
+    thread->stack_top -= sizeof(context_t);
+    context_t* context = (context_t*)thread->stack_top;
+    context->sp = thread->stack_top;
+    context->ra = (unative_t)&thread_entry_func_wrapper;
+    context->status = 0xff01;
+
+    scheduler_add_ready_thread(*thread_out);
+    return EOK;
 }
 
 /** Return information about currently executing thread.
@@ -99,7 +131,7 @@ bool thread_has_finished(thread_t* thread) {
  * @retval EEXITED Thread already finished its execution.
  */
 errno_t thread_wakeup(thread_t* thread) {
-    return ENOIMPL;
+    return scheduler_wakeup_thread(thread);
 }
 
 /** Joins another thread (waits for it to terminate.
@@ -115,6 +147,9 @@ errno_t thread_wakeup(thread_t* thread) {
  * @retval EINVAL Invalid thread.
  */
 errno_t thread_join(thread_t* thread, void** retval) {
+    if (thread == NULL) {
+        return EINVAL;
+    }
     while (thread->state != FINISHED) {
         thread_yield();
     }
@@ -130,5 +165,13 @@ errno_t thread_join(thread_t* thread, void** retval) {
  * @param thread Thread to switch to.
  */
 void thread_switch_to(thread_t* thread) {
-    // TODO:
+    void* stack_top_old = (void*)thread_get_current()->stack_top;
+    void* stack_top_new = (void*)thread->stack_top;
+    cpu_switch_context(&stack_top_old, &stack_top_new, 1);
+}
+
+static void thread_entry_func_wrapper()
+{
+    thread_t* current_thread = thread_get_current();
+    thread_finish(current_thread->entry_func(current_thread->data));
 }

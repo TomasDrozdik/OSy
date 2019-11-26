@@ -22,10 +22,16 @@ static queue_item_t* current_thread;
 static queue_item_t* schedule_pool;
 
 static list_t ready_thread_queue;
-//static list_t sleeping_thread_queue;
+static list_t suspended_thread_queue;
 
 static size_t free_indices_stack_top;
 static size_t* free_indices_stack;  // Grows downwards
+
+/** Scheduling stategy.
+ *
+ * Puts item in list as the last one i.e. before current thread.
+ */
+static inline void schedule(queue_item_t* item);
 
 /** Increases the size of preallocated space according to external size of the
  *  thread pool.
@@ -43,6 +49,10 @@ void scheduler_init(void) {
 
     free_indices_stack = (size_t*)
             kmalloc(sizeof(size_t) * queue_size);
+
+    panic_if(!schedule_pool || !free_indices_stack,
+            "scheduler_init: Not enough memory.");
+
     for (size_t i = 0; i < queue_size; ++i) {
         free_indices_stack[i] = i;
     }
@@ -50,6 +60,7 @@ void scheduler_init(void) {
     free_indices_stack_top = 0;
 
     list_init(&ready_thread_queue);
+    list_init(&suspended_thread_queue);
 
     // Since no thread is running set this to NULL.
     current_thread = NULL;
@@ -72,7 +83,7 @@ void scheduler_add_ready_thread(thread_t* thread) {
             &schedule_pool[free_indices_stack[free_indices_stack_top++]];
 
     new->thread = thread;
-    list_append(&ready_thread_queue, &new->link);
+    schedule(new);
 
     // If no thread has beed scheduled yet then add this newly added one as
     // a first one. Otherwise switching is managed with
@@ -118,14 +129,51 @@ void scheduler_suspend_thread(thread_t* thread) {
 }
 
 void scheduler_suspend_current_thread() {
-    // TODO:
-    panic();
+    // Remove this thread from the list of ready threads.
+    list_remove(&current_thread->link);
+
+    // Add it to queue of suspended threads.
+    current_thread->state = SUSPENDED;
+    list_append(&suspended_thread_queue, &current_thread->link);
+
+    scheduler_schedule_next();
+}
+
+
+/** Wakes-up existing thread.
+ *
+ * Note that waking-up a running (or ready) thread has no effect (i.e. the
+ * function shall not count wake-ups and suspends).
+ *
+ * Note that waking-up a thread does not mean that it will immediatelly start
+ * executing.
+ *
+ * @param thread Thread to wake-up.
+ * @return Error code.
+ * @retval EOK Thread was woken-up (or was already ready/running).
+ * @retval EINVAL Invalid thread.
+ * @retval EEXITED Thread already finished its execution.
+ */
+errno_t scheduler_wakeup_thread(thread_t *id) {
+    if (id->state == FINISHED) {
+        return EEXITED;
+    }
+    list_foreach(suspended_thread_queue, queue_item_t, link, suspended_thread) {
+        if (suspended_thread->thread == id) {
+            list_remove(&suspended_thread->link);
+
+            suspended_thread->state = READY;
+            schedule(suspended_thread);
+            return EOK;
+        }
+    }
+    return EINVAL;
 }
 
 /** Switch to next thread in the queue. */
 void scheduler_schedule_next(void) {
     if (current_thread == NULL) {
-        return;
+        panic("scheduler_schedule_next: Current thread is NULL.");
     }
 
     link_t* next_link = current_thread->link.next;
@@ -141,6 +189,10 @@ void scheduler_schedule_next(void) {
 
 thread_t* scheduler_get_running_thread() {
     return (current_thread == NULL) ? NULL : current_thread->thread;
+}
+
+static inline void schedule(queue_item_t* item) {
+    list_add(current_thread->link.prev, &item->link);
 }
 
 /** Double the size of the thread_queue, free_indices_stack and correct pointers

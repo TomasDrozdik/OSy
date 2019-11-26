@@ -32,9 +32,10 @@ typedef struct thread thread_t;
 struct thread {
     char name[THREAD_NAME_MAX_LENGTH + 1];
     thread_entry_func_t entry_func;
-    thread_state_t state;
-    void* stack_top;
+    void * data;
     void* retval;
+    thread_state_t state;
+    unative_t stack_top;
 };
 
 void threads_init(void);

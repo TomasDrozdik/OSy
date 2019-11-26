@@ -54,16 +54,16 @@ typedef struct block_header {
  */
 static inline uintptr_t align(uintptr_t ptr, size_t size);
 
-static void debug_print_block_list(list_t* blocks) {
-    dprintk("%pL\n", blocks);
-
-    list_foreach(*blocks, block_header_t, link, header) {
-        dprintk(
-                "\th[p: %p, size: %u, free: %u, link->prev: %p, link->next: %p] ->\n",
-                &header->link, header->size, header->free, header->link.prev,
-                header->link.next);
-    }
-}
+//static void debug_print_block_list(list_t* blocks) {
+//    dprintk("%pL\n", blocks);
+//
+//    list_foreach(*blocks, block_header_t, link, header) {
+//        dprintk(
+//                "\th[p: %p, size: %u, free: %u, link->prev: %p, link->next: %p] ->\n",
+//                &header->link, header->size, header->free, header->link.prev,
+//                header->link.next);
+//    }
+//}
 
 /** Initialized heap.
  *
@@ -74,8 +74,8 @@ static void debug_print_block_list(list_t* blocks) {
 void heap_init(void) {
     list_init(&blocks);
 
-    dprintk("KERNEL_END = %p\n", (void*)debug_get_kernel_endptr());
-    dprintk("INIT: &blocks = %p\n", &blocks);
+//    dprintk("KERNEL_END = %p\n", (void*)debug_get_kernel_endptr());
+//    dprintk("INIT: &blocks = %p\n", &blocks);
 
     uintptr_t start_ptr = align(debug_get_kernel_endptr(), MIN_ALLOCATION_SIZE);
     block_header_t* initial_header = (block_header_t*)start_ptr;
@@ -84,32 +84,32 @@ void heap_init(void) {
 
     list_append(&blocks, &initial_header->link);
 
-    debug_print_block_list(&blocks);
-    dprintk("\n\n");
+//    debug_print_block_list(&blocks);
+//    dprintk("\n\n");
 }
 
 void* kmalloc(size_t size) {
     size = align(size, MIN_ALLOCATION_SIZE);
     size_t actual_size = size + sizeof(block_header_t);
 
-    dprintk("Searching for block of size %u, actual size %u\n", size, actual_size);
+//    dprintk("Searching for block of size %u, actual size %u\n", size, actual_size);
 
     list_foreach(blocks, block_header_t, link, header) {
         if (header->free) {
             if (header->size == actual_size) {
 
-                dprintk("Header[%p] exact size found\n", &header->link);
+//                dprintk("Header[%p] exact size found\n", &header->link);
 
                 header->free = false;
 
-                debug_print_block_list(&blocks);
-                dprintk("Returning pointer %p\n\n", PAYLOAD_FROM_HEADER(header));
+//                debug_print_block_list(&blocks);
+//                dprintk("Returning pointer %p\n\n", PAYLOAD_FROM_HEADER(header));
 
                 return PAYLOAD_FROM_HEADER(header);
             } else if (header->size >= actual_size + sizeof(block_header_t)
                             + MIN_ALLOCATION_SIZE) {
 
-                dprintk("Header[%p] sufficient size found\n", &header->link);
+//                dprintk("Header[%p] sufficient size found\n", &header->link);
 
                 // Create new header inside of this memory block, with new
                 // header as a free one and this one would serve as allocated
@@ -123,20 +123,20 @@ void* kmalloc(size_t size) {
 
                 list_add(&header->link, &new_header->link);
 
-                debug_print_block_list(&blocks);
-                dprintk("Returning pointer %p\n\n", PAYLOAD_FROM_HEADER(header));
+//                debug_print_block_list(&blocks);
+//                dprintk("Returning pointer %p\n\n", PAYLOAD_FROM_HEADER(header));
 
                 return PAYLOAD_FROM_HEADER(header);
             } else {
-                dprintk("Requested size %u is less than minimal size %u\n",
-                        actual_size,
-                        actual_size + sizeof(block_header_t) + MIN_ALLOCATION_SIZE);
+//                dprintk("Requested size %u is less than minimal size %u\n",
+//                        actual_size,
+//                        actual_size + sizeof(block_header_t) + MIN_ALLOCATION_SIZE);
             }
         }
     }
-    dprintk("Requested size not found\n");
-    debug_print_block_list(&blocks);
-    dprintk("\n\n");
+//    dprintk("Requested size not found\n");
+//    debug_print_block_list(&blocks);
+//    dprintk("\n\n");
     return NULL;
 }
 
@@ -144,8 +144,8 @@ void kfree(void* ptr) {
     block_header_t* header = HEADER_FROM_PAYLOAD(ptr);
     assert(header->free == false);
 
-    dprintk("Freeing pointer %p cooresponding to link %p\n",
-            ptr, &header->link);
+//    dprintk("Freeing pointer %p cooresponding to link %p\n",
+//            ptr, &header->link);
 
     header->free = true;
 
@@ -169,8 +169,8 @@ void kfree(void* ptr) {
         }
     }
 
-    debug_print_block_list(&blocks);
-    dprintk("\n\n");
+//    debug_print_block_list(&blocks);
+//    dprintk("\n\n");
 }
 
 static inline uintptr_t align(uintptr_t ptr, size_t size) {
