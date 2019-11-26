@@ -9,6 +9,7 @@
  * Called once at system boot.
  */
 void scheduler_init(void) {
+
 }
 
 /** Marks given thread as ready to be executed.
@@ -19,6 +20,7 @@ void scheduler_init(void) {
  * @param thread Thread to make runnable.
  */
 void scheduler_add_ready_thread(thread_t* thread) {
+
 }
 
 /** Removes given thread from scheduling.
@@ -29,8 +31,10 @@ void scheduler_add_ready_thread(thread_t* thread) {
  * @param thread Thread to remove from the queue.
  */
 void scheduler_remove_thread(thread_t* thread) {
+
 }
 
 /** Switch to next thread in the queue. */
 void scheduler_schedule_next(void) {
+
 }

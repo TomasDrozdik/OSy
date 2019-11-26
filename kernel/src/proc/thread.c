@@ -10,6 +10,7 @@
  * Called once at system boot.
  */
 void threads_init(void) {
+
 }
 
 /** Create a new thread.
@@ -43,10 +44,12 @@ thread_t* thread_get_current(void) {
 
 /** Yield the processor. */
 void thread_yield(void) {
+
 }
 
 /** Current thread stops execution and is not scheduled until woken up. */
 void thread_suspend(void) {
+
 }
 
 /** Terminate currently running thread.
@@ -115,4 +118,5 @@ errno_t thread_join(thread_t* thread, void** retval) {
  * @param thread Thread to switch to.
  */
 void thread_switch_to(thread_t* thread) {
+
 }
