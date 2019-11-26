@@ -31,7 +31,7 @@ void threads_init(void) {
  * @retval INVAL Invalid flags (unused).
  */
 errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* data, unsigned int flags, const char* name) {
-    
+    // TODO:
     return ENOIMPL;
 }
 
@@ -65,7 +65,14 @@ void thread_suspend(void) {
  */
 void thread_finish(void* retval) {
     thread_t* current_thread = thread_get_current();
+    current_thread->state = FINISHED;
     current_thread->retval = retval;
+
+    scheduler_remove_current_thread();
+    scheduler_schedule_next();
+
+    // Noreturn function
+    while (1);
 }
 
 /** Tells if thread already called thread_finish() or returned from the entry
@@ -123,4 +130,5 @@ errno_t thread_join(thread_t* thread, void** retval) {
  * @param thread Thread to switch to.
  */
 void thread_switch_to(thread_t* thread) {
+    // TODO:
 }

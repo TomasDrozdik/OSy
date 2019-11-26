@@ -12,15 +12,14 @@ void scheduler_add_ready_thread(thread_t* id);
 
 void scheduler_remove_thread(thread_t* id);
 
-void scheduler_remove_current_thread();
+void scheduler_remove_current_thread(void);
 
 void scheduler_suspend_thread(thread_t* id);
 
-void scheduler_suspend_current_thread();
+void scheduler_suspend_current_thread(void);
 
 void scheduler_schedule_next(void);
 
-inline thread_t* scheduler_get_running_thread();
-
+thread_t* scheduler_get_running_thread(void);
 
 #endif
