@@ -41,6 +41,8 @@ void threads_init(void) {
  * @retval INVAL Invalid flags (unused).
  */
 errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* data, unsigned int flags, const char* name) {
+    dprintk("\n");
+
     // Allocate enought memory for stack and thread_t structure.
     // No heap is available.
     thread_t* thread = (thread_t*)kmalloc(sizeof(thread_t) + THREAD_STACK_SIZE);
@@ -73,16 +75,22 @@ errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* da
  * @retval NULL When no thread was started yet.
  */
 thread_t* thread_get_current(void) {
+    dprintk("\n");
+
     return scheduler_get_running_thread();
 }
 
 /** Yield the processor. */
 void thread_yield(void) {
+    dprintk("\n");
+
     scheduler_schedule_next();
 }
 
 /** Current thread stops execution and is not scheduled until woken up. */
 void thread_suspend(void) {
+    dprintk("\n");
+
     scheduler_suspend_current_thread();
 }
 
@@ -97,6 +105,8 @@ void thread_suspend(void) {
  * @param retval Data to return in thread_join.
  */
 void thread_finish(void* retval) {
+    dprintk("\n");
+
     thread_t* current_thread = thread_get_current();
     current_thread->state = FINISHED;
     current_thread->retval = retval;
@@ -115,6 +125,8 @@ void thread_finish(void* retval) {
  * @param thread Thread in question.
  */
 bool thread_has_finished(thread_t* thread) {
+    dprintk("\n");
+
     return false;
 }
 
@@ -133,6 +145,8 @@ bool thread_has_finished(thread_t* thread) {
  * @retval EEXITED Thread already finished its execution.
  */
 errno_t thread_wakeup(thread_t* thread) {
+    dprintk("\n");
+
     return scheduler_wakeup_thread(thread);
 }
 
@@ -149,6 +163,8 @@ errno_t thread_wakeup(thread_t* thread) {
  * @retval EINVAL Invalid thread.
  */
 errno_t thread_join(thread_t* thread, void** retval) {
+    dprintk("\n");
+
     if (thread == NULL) {
         return EINVAL;
     }
@@ -167,13 +183,16 @@ errno_t thread_join(thread_t* thread, void** retval) {
  * @param thread Thread to switch to.
  */
 void thread_switch_to(thread_t* thread) {
+    dprintk("\n");
+
     void* stack_top_old = (void*)thread_get_current()->stack_top;
     void* stack_top_new = (void*)thread->stack_top;
     cpu_switch_context(&stack_top_old, &stack_top_new, 1);
 }
 
-static void thread_entry_func_wrapper()
-{
+static void thread_entry_func_wrapper() {
+    dprintk("\n");
+
     thread_t* current_thread = thread_get_current();
     thread_finish(current_thread->entry_func(current_thread->data));
 }

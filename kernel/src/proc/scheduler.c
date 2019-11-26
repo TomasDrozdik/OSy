@@ -6,6 +6,8 @@
 #include <adt/list.h>
 #include <mm/heap.h>
 
+#include <lib/print.h>
+
 #define INDEX_OF(ITEMPTR, ARRAYPTR) \
     ((size_t)(((uintptr_t)ITEMPTR - (uintptr_t)ARRAYPTR) / sizeof(*ARRAYPTR)))
 
@@ -74,6 +76,8 @@ void scheduler_init(void) {
  * @param thread Thread to make runnable.
  */
 void scheduler_add_ready_thread(thread_t* thread) {
+    dprintk("\n");
+
     // Check if there is a free space in preallocated array of queue_item_t.
     if (free_indices_stack_top == queue_size) {
         resize();
@@ -83,13 +87,15 @@ void scheduler_add_ready_thread(thread_t* thread) {
             &schedule_pool[free_indices_stack[free_indices_stack_top++]];
 
     new->thread = thread;
-    schedule(new);
 
-    // If no thread has beed scheduled yet then add this newly added one as
-    // a first one. Otherwise switching is managed with
-    // scheduler_schedule_next().
+    // If no thread has beed scheduled yet then add this new one as a first.
     if (current_thread == NULL) {
+        list_append(&ready_thread_queue, &new->link);
         current_thread = new;
+    } else {
+        // Otherwise just schedule the thread using specific scheduling
+        // stretegy.
+        schedule(new);
     }
 }
 
@@ -101,6 +107,8 @@ void scheduler_add_ready_thread(thread_t* thread) {
  * @param thread Thread to remove from the queue.
  */
 void scheduler_remove_thread(thread_t* thread) {
+    dprintk("\n");
+
     list_foreach(ready_thread_queue, queue_item_t, link, queue_item) {
         if (queue_item->thread == thread) {
             list_remove(&queue_item->link);
@@ -112,6 +120,8 @@ void scheduler_remove_thread(thread_t* thread) {
 }
 
 void scheduler_remove_current_thread() {
+    dprintk("\n");
+
     list_remove(&current_thread->link);
     free_indices_stack[++free_indices_stack_top] =
             INDEX_OF(current_thread, schedule_pool);
@@ -129,6 +139,8 @@ void scheduler_suspend_thread(thread_t* thread) {
 }
 
 void scheduler_suspend_current_thread() {
+    dprintk("\n");
+
     // Remove this thread from the list of ready threads.
     list_remove(&current_thread->link);
 
@@ -155,6 +167,8 @@ void scheduler_suspend_current_thread() {
  * @retval EEXITED Thread already finished its execution.
  */
 errno_t scheduler_wakeup_thread(thread_t *id) {
+    dprintk("\n");
+
     if (id->state == FINISHED) {
         return EEXITED;
     }
@@ -172,6 +186,8 @@ errno_t scheduler_wakeup_thread(thread_t *id) {
 
 /** Switch to next thread in the queue. */
 void scheduler_schedule_next(void) {
+    dprintk("\n");
+
     if (current_thread == NULL) {
         panic("scheduler_schedule_next: Current thread is NULL.");
     }
@@ -188,10 +204,15 @@ void scheduler_schedule_next(void) {
 }
 
 thread_t* scheduler_get_running_thread() {
+    dprintk("\n");
+
     return (current_thread == NULL) ? NULL : current_thread->thread;
 }
 
 static inline void schedule(queue_item_t* item) {
+    dprintk("Thread %s schedules in %pL\n", item->thread->name,
+            &ready_thread_queue);
+
     list_add(current_thread->link.prev, &item->link);
 }
 
