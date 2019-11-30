@@ -187,7 +187,7 @@ void thread_switch_to(thread_t* thread) {
 
     void* stack_top_old = (void*)thread_get_current()->stack_top;
     void* stack_top_new = (void*)thread->stack_top;
-    cpu_switch_context(&stack_top_old, &stack_top_new, 1);
+    cpu_switch_context(stack_top_old, &stack_top_new, 1);
 }
 
 static void thread_entry_func_wrapper() {

@@ -1,6 +1,8 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2019 Charles University
 
+// TODO: implement free list
+
 #include <adt/list.h>
 #include <debug/mm.h>
 #include <mm/heap.h>
@@ -45,6 +47,7 @@ typedef struct block_header {
     size_t size;
     bool free;
     link_t link;
+    // TODO: uint8_t data; // just return pointer to data;
 } block_header_t;
 
 /** Align the pointer.
@@ -174,6 +177,7 @@ void kfree(void* ptr) {
 }
 
 static inline uintptr_t align(uintptr_t ptr, size_t size) {
+    // TODO: consider using trick with next power of 2
     size_t remainder;
     remainder = ptr % size;
     if (remainder == 0) {
