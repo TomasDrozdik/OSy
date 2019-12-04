@@ -103,16 +103,6 @@ static inline uintptr_t align(uintptr_t ptr, size_t size);
  */
 static inline void compact(link_t* prev, link_t* next);
 
-static void debug_print_lists() {
-    dprintk("BLOCKS = %pL\n", &blocks);
-    dprintk("FREE_BLOCKS = %pL\n", &free_blocks);
-
-    list_foreach(blocks, block_header_t, link, header) {
-        dprintk("\th[p: %p, size: %u, free: %u, free_link: %p] ->\n",
-                &header->link, BLOCK_SIZE(header), link_is_connected(&header->free_link), &header->free_link);
-    }
-}
-
 void* kmalloc(size_t size) {
     if (!heap_initialized) {
         heap_init();
@@ -122,48 +112,26 @@ void* kmalloc(size_t size) {
     size = align(size, MIN_ALLOCATION_SIZE);
     size_t actual_size = size + sizeof(block_header_t);
 
-    dprintk("Searching for block of size %u, actual size %u\n", size, actual_size);
-
     list_foreach(free_blocks, block_header_t, free_link, header) {
         if (BLOCK_SIZE(header) == actual_size) {
-
-            dprintk("Header[%p] exact size found\n", &header->link);
-
             list_remove(&header->free_link);
-
-            debug_print_lists();
-            dprintk("Returning pointer %p\n\n", PAYLOAD_FROM_HEADER(header));
-
             return PAYLOAD_FROM_HEADER(header);
         } else if (BLOCK_SIZE(header) >= actual_size + sizeof(block_header_t)
                         + MIN_ALLOCATION_SIZE) {
-
-            dprintk("Header[%p] sufficient size found\n", &header->link);
 
             // Create new header inside of this memory block, with new
             // header as a free one and this one would serve as allocated
             // block for requested size.
             block_header_t* new_header = (block_header_t*)((uintptr_t)header + actual_size);
-
             list_add(&header->link, &new_header->link);
             list_append(&free_blocks, &new_header->free_link);
 
             list_remove(&header->free_link);
             link_init(&header->free_link);
 
-            debug_print_lists();
-            dprintk("Returning pointer %p\n\n", PAYLOAD_FROM_HEADER(header));
-
             return PAYLOAD_FROM_HEADER(header);
-        } else {
-            dprintk("Requested size %u is less than minimal size %u\n",
-                    actual_size,
-                    actual_size + sizeof(block_header_t) + MIN_ALLOCATION_SIZE);
         }
     }
-    dprintk("Requested size not found\n");
-    debug_print_lists();
-    dprintk("\n\n");
     return NULL;
 }
 
@@ -171,26 +139,15 @@ void kfree(void* ptr) {
     block_header_t* header = HEADER_FROM_PAYLOAD(ptr);
     assert(!link_is_connected(&header->free_link));
 
-    dprintk("Freeing pointer %p cooresponding to link %p\n",
-            ptr, &header->link);
-
     list_prepend(&free_blocks, &header->free_link);
 
     compact(header->link.prev, &header->link);
     compact(&header->link, header->link.next);
-
-    debug_print_lists();
-    dprintk("\n\n");
 }
 
 static void heap_init(void) {
     list_init(&blocks);
     list_init(&free_blocks);
-
-
-    dprintk("KERNEL_END = %p\n", (void*)debug_get_kernel_endptr());
-    dprintk("INIT: &blocks = %p\n", &blocks);
-    dprintk("INIT: &free_blocks = %p\n", &free_blocks);
 
     uintptr_t start_ptr = align(debug_get_kernel_endptr(), MIN_ALLOCATION_SIZE);
     end_ptr = debug_get_base_memory_endptr();
@@ -199,9 +156,6 @@ static void heap_init(void) {
 
     list_append(&blocks, &initial_header->link);
     list_append(&free_blocks, &initial_header->free_link);
-
-    debug_print_lists();
-    dprintk("\n\n");
 }
 
 static inline uintptr_t align(uintptr_t ptr, size_t size) {
