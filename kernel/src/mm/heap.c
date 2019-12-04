@@ -83,14 +83,6 @@ typedef struct block_header {
     link_t free_link;
 } block_header_t;
 
-void free_list_remove(block_t* block);
-
-void free_list_add(block_t* block);
-
-void defragment_list(void);
-
-void stats(char* prefix);
-
 /** Initialized heap.
  *
  * Uses pointer to kernel end and size of the available memory to determine
