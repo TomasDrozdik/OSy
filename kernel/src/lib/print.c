@@ -6,62 +6,35 @@
 #include <drivers/printer.h>
 #include <lib/print.h>
 #include <lib/stdarg.h>
-#include <types.h>
 
 #define BUFFER_SIZE 20
 
-/** Type for representing base of a number.*/
-typedef uint32_t base_t;
-
-/** Prints given string to console.
- * @param s String to print.
+/** Shifts string to the right.
+ *
+ * WARNING: Does not check boundries of the string!
+ *
+ * @param strstart Start of the string.
+ * @param strend End of the string, pointer to one char past the last char.
+ * @param shiftsize Size of the shift.
  */
-void fputs(const char* s);
+static inline void shift_str_right(char* strstart, char* strend,
+        size_t shiftsize);
 
-/** Prints given string to console, terminating it with newline.
- * @param s String to print.
+/** Fills given string with given char.
+ *
+ * WARNING: Does not check boundries of the string!
+ *
+ * @param strstart Pointer to the begining of the string to fill.
+ * @param strend Pointer past the end of the string to fill.
+ * @param fillchar Character to fill the string with.
  */
-void puts(const char* s);
+static inline void fill(char* strstart, char* strend, char fillchar);
 
-/** Prints given formatted string to console.
- * Supported printf formats: %c, %d, %u, %s, %x, %X.
- * @param format printf-style formatting string.
+/** Get the order of the number i.e. number of digits according to given base.
+ * @param n Number to process.
+ * @param base Compute order according to this base.
  */
-void printk(const char* format, ...);
-
-/** Capitalizes given character.
- * Converts a-z to A-Z, other characters remain.
- * @param c Char to capitalize.unit32_i
- * @return Capitalized character
- */
-int toupper(int c);
-
-/** Convert uint32_t to string given fixed sized buffer.
- * If buffer is not big enoght to hold the number in given base then return -1.
- * @param n Number to print.
- * @param base Print the number w.r.t. this base.
- * @param buf Pointer buffer.
- * @param buflen Size of the buffer.
- * @returns Length of the string converted OR -1 on small buffer.
- */
-int uint32_to_str(uint32_t n, base_t base, char* buf, size_t buflen);
-
-/** Convert int32_t to string given fixed sized buffer.
- * If buffer is not big enoght to hold the number in given base then return -1.
- * @param n Number to print.
- * @param base Print the number w.r.t. this base.
- * @param buf Pointer buffer.
- * @param buflen Size of the buffer.
- * @returns Length of the string converted OR -1 on small buffer.
- */
-int int32_to_str(int32_t n, base_t base, char* buf, size_t buflen);
-
-/** Convert a string to a long integer
- * @param nptr Pointer to given number.
- * @param endptr Pointer to next non nuber character.
- * @returns Parsed number
- */
-long int strtol(const char* nptr, char** endptr);
+static inline size_t get_order(uint32_t n, base_t base);
 
 /** Print given integer.
  * In case of buffer overflow assert fails.
@@ -95,33 +68,6 @@ static void print_pointer(void* p, char buf[BUFFER_SIZE]);
  */
 static void print_list(list_t* list, char buf[BUFFER_SIZE]);
 
-/** Get the order of the number i.e. number of digits according to given base.
- * @param n Number to process.
- * @param base Compute order according to this base.
- */
-static inline size_t get_order(uint32_t n, base_t base);
-
-/** Shifts string to the right.
- *
- * WARNING: Does not check boundries of the string!
- *
- * @param strstart Start of the string.
- * @param strend End of the string, pointer to one char past the last char.
- * @param shiftsize Size of the shift.
- */
-static inline void shift_str_right(char* strstart, char* strend,
-        size_t shiftsize);
-
-/** Fills given string with given char.
- *
- * WARNING: Does not check boundries of the string!
- *
- * @param strstart Pointer to the begining of the string to fill.
- * @param strend Pointer past the end of the string to fill.
- * @param fillchar Character to fill the string with.
- */
-static inline void fill(char* strstart, char* strend, char fillchar);
-
 /** Implementation of uint32_t_to_string.
  * Converts uint32_t number n with given order and base to string stored in dst
  * which does have sufficient memory allocated w.r.t. order.
@@ -134,9 +80,6 @@ static inline void fill(char* strstart, char* strend, char fillchar);
 static void uint32_to_str_impl(uint32_t n, char* buf, int order,
         int base);
 
-/** Print null terminated string to output.
- * @param s Null terminated string.
- */
 void fputs(const char* s) {
     while (*s != '\0') {
         printer_putchar(*s);
@@ -144,9 +87,6 @@ void fputs(const char* s) {
     }
 }
 
-/** Print null terminated string to output followed by a newline.
- * @param s Null terminated string.
- */
 void puts(const char* s) {
     fputs(s);
     printer_putchar('\n');
