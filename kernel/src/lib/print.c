@@ -6,6 +6,7 @@
 #include <drivers/printer.h>
 #include <lib/print.h>
 #include <lib/stdarg.h>
+#include <proc/thread.h>
 
 #define BUFFER_SIZE 20
 
@@ -67,6 +68,12 @@ static void print_pointer(void* p, char buf[BUFFER_SIZE]);
  *            print_integer.
  */
 static void print_list(list_t* list, char buf[BUFFER_SIZE]);
+
+/** Prints thread info
+ * Format: // TODO
+ * @param list List to print.
+ */
+static void print_thread(thread_t* thread);
 
 /** Implementation of uint32_t_to_string.
  * Converts uint32_t number n with given order and base to string stored in dst
@@ -135,6 +142,9 @@ void printk(const char* format, ...) {
             switch (*(++cp)) {
             case 'L':
                 print_list(va_arg(args, list_t*), buf);
+                break;
+            case 'T':
+                print_thread(va_arg(args, thread_t*));
                 break;
             default:
                 --cp;
@@ -306,7 +316,7 @@ static void print_list(list_t* list, char buf[BUFFER_SIZE]) {
         return;
     }
 
-    link_t* it = (&list->head)->next;
+    link_t* it = list->head.next;
     printk("%p[%u: %p", list, size, it);
 
     if (size > 1) {
@@ -316,6 +326,27 @@ static void print_list(list_t* list, char buf[BUFFER_SIZE]) {
         }
     }
     printer_putchar(']');
+}
+
+static void print_thread(thread_t* thread) {
+    printk("Thread[%p] %s:"
+           "\tstate: %s"
+           "\tentry_func: %p"
+           "\tdata: %p"
+           "\tstack_top: %p"
+           "\t&context: %p"
+           "\tsp: %p"
+           "\tra: %p",
+           thread,
+           thread->name,
+           (thread->state == READY) ? "READY" :
+                   (thread->state == SUSPENDED) ? "SUSPENDED" : "FINISHED",
+           thread->entry_func,
+           thread->data,
+           thread->stack_top,
+           &thread->context,
+           thread->context.sp,
+           thread->context.ra);
 }
 
 static void uint32_to_str_impl(uint32_t n, char* buf, int order,

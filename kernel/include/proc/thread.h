@@ -6,6 +6,7 @@
 
 #include <errno.h>
 #include <types.h>
+#include <proc/context.h>
 
 /** Thread stack size.
  *
@@ -36,6 +37,7 @@ struct thread {
     void* retval;
     thread_state_t state;
     unative_t stack_top;
+    context_t context;
 };
 
 void threads_init(void);

@@ -7,6 +7,7 @@
 #include <proc/thread.h>
 #include <adt/list.h>
 #include <mm/heap.h>
+#include <debug/code.h>
 
 /** Wraps the thread_entry_function so that it always calls finish.
  */
@@ -50,22 +51,23 @@ errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* da
         return ENOMEM;
     }
 
+
     // Set up thread_t structure.
     strncpy((char*)thread->name, name, THREAD_NAME_MAX_LENGTH);
     thread->entry_func = entry;
     thread->data = data;
     thread->state = READY;
-    thread->stack_top = (unative_t)
-            ((uintptr_t)thread + sizeof(thread_t) + THREAD_STACK_SIZE);
-    *thread_out = thread;
+    thread->stack_top = (uintptr_t)&thread->context;
 
     // Set up stack
-    thread->stack_top -= sizeof(context_t);
-    context_t* context = (context_t*)thread->stack_top;
-    context->sp = thread->stack_top;
-    context->ra = (unative_t)&thread_entry_func_wrapper;
-    context->status = 0xff01;
+    thread->context.sp = (unative_t)
+            ((uintptr_t)thread + sizeof(thread_t) + THREAD_STACK_SIZE);
+    thread->context.ra = (unative_t)&thread_entry_func_wrapper;
+    thread->context.status = 0xff01;
 
+    dprintk("New thread allocated: %pT\n", thread);
+
+    *thread_out = thread;
     scheduler_add_ready_thread(*thread_out);
     return EOK;
 }
@@ -75,7 +77,6 @@ errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* da
  * @retval NULL When no thread was started yet.
  */
 thread_t* thread_get_current(void) {
-    dprintk("\n");
 
     return scheduler_get_running_thread();
 }
@@ -183,16 +184,23 @@ errno_t thread_join(thread_t* thread, void** retval) {
  * @param thread Thread to switch to.
  */
 void thread_switch_to(thread_t* thread) {
-    dprintk("\n");
+    dprintk("%pT\n", thread);
 
-    void* stack_top_old = (void*)thread_get_current()->stack_top;
-    void* stack_top_new = (void*)thread->stack_top;
-    cpu_switch_context(stack_top_old, &stack_top_new, 1);
+    thread_t* current_thread = thread_get_current();
+
+    void* stack_top_old = current_thread ? (void*)current_thread->stack_top :
+            (void*)debug_get_stack_pointer();
+    void* stack_top_new = (void*)&thread->context;
+
+    cpu_switch_context(&stack_top_old, &stack_top_new, 1);
 }
 
 static void thread_entry_func_wrapper() {
     dprintk("\n");
 
     thread_t* current_thread = thread_get_current();
+    panic_if(current_thread == NULL,
+            "thread_entry_func_wrapper: current_thread == NULL");
+
     thread_finish(current_thread->entry_func(current_thread->data));
 }

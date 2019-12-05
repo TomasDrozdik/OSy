@@ -1,8 +1,6 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2019 Charles University
 
-// TODO: implement free list
-
 #include <adt/list.h>
 #include <debug/mm.h>
 #include <mm/heap.h>
@@ -47,7 +45,7 @@
  * @returns Size of a block in size_t type.
  */
 #define BLOCK_SIZE(HEADERPTR) ((size_t) \
-    (VALID_HEADER_LINK(HEADERPTR->link.next) ? \
+    (valid_link(blocks, HEADERPTR->link.next) ? \
         (uintptr_t)HEADERPTR->link.next - (uintptr_t)&HEADERPTR->link : \
         end_ptr - (uintptr_t)HEADERPTR))
 
@@ -59,9 +57,6 @@
  */
 #define IS_FREE(HEADERPTR) \
     link_is_connected(&HEADERPTR->free_link)
-
-/** Indicates if heap_init has been called. */
-static bool heap_initialized = false;
 
 /** List of all blocks in heap. */
 static list_t blocks;
@@ -89,6 +84,19 @@ static inline uintptr_t align(uintptr_t ptr, size_t size);
  * @param next Link after @prev.
  */
 static inline void compact(link_t* prev, link_t* next);
+
+void heap_init(void) {
+    list_init(&blocks);
+    list_init(&free_blocks);
+
+    uintptr_t start_ptr = align(debug_get_kernel_endptr(), MIN_ALLOCATION_SIZE);
+    end_ptr = debug_get_base_memory_endptr();
+
+    block_header_t* initial_header = (block_header_t*)start_ptr;
+
+    list_append(&blocks, &initial_header->link);
+    list_append(&free_blocks, &initial_header->free_link);
+}
 
 void* kmalloc(size_t size) {
     size = align(size, MIN_ALLOCATION_SIZE);
@@ -127,18 +135,7 @@ void kfree(void* ptr) {
     compact(&header->link, header->link.next);
 }
 
-static void heap_init(void) {
-    list_init(&blocks);
-    list_init(&free_blocks);
 
-    uintptr_t start_ptr = align(debug_get_kernel_endptr(), MIN_ALLOCATION_SIZE);
-    end_ptr = debug_get_base_memory_endptr();
-
-    block_header_t* initial_header = (block_header_t*)start_ptr;
-
-    list_append(&blocks, &initial_header->link);
-    list_append(&free_blocks, &initial_header->free_link);
-}
 
 static inline uintptr_t align(uintptr_t ptr, size_t size) {
     // TODO: consider using trick with next power of 2
@@ -151,9 +148,9 @@ static inline uintptr_t align(uintptr_t ptr, size_t size) {
 }
 
 static inline void compact(link_t* prev, link_t* next) {
-    block_header_t* prev_header = VALID_HEADER_LINK(prev) ?
+    block_header_t* prev_header = valid_link(blocks, prev) ?
             HEADER_FROM_LINK(prev) : NULL;
-    block_header_t* next_header = VALID_HEADER_LINK(next) ?
+    block_header_t* next_header = valid_link(blocks, next) ?
             HEADER_FROM_LINK(next) : NULL;
     if (prev_header && next_header &&
             IS_FREE(prev_header) && IS_FREE(next_header)) {
