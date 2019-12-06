@@ -18,6 +18,12 @@
 /** Max length (excluding terminating zero) of thread name. */
 #define THREAD_NAME_MAX_LENGTH 31
 
+#define THREAD_INITIAL_STACK_TOP(THREADPTR) \
+    ((unative_t)((uintptr_t)THREADPTR + sizeof(thread_t) + THREAD_STACK_SIZE))
+
+#define THREAD_INITIAL_CONTEXT(THREADPTR) \
+    ((context_t*)(THREAD_INITIAL_STACK_TOP(THREADPTR) - sizeof(context_t)))
+
 /** Thread entry function as you know from pthreads. */
 typedef void* (*thread_entry_func_t)(void*);
 
@@ -37,7 +43,6 @@ struct thread {
     void* retval;
     thread_state_t state;
     unative_t stack_top;
-    context_t context;
 };
 
 void threads_init(void);

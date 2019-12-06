@@ -57,13 +57,14 @@ errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* da
     thread->entry_func = entry;
     thread->data = data;
     thread->state = READY;
-    thread->stack_top = (uintptr_t)&thread->context;
 
     // Set up stack
-    thread->context.sp = (unative_t)
-            ((uintptr_t)thread + sizeof(thread_t) + THREAD_STACK_SIZE);
-    thread->context.ra = (unative_t)&thread_entry_func_wrapper;
-    thread->context.status = 0xff01;
+    context_t* context = THREAD_INITIAL_CONTEXT(thread);
+    context->sp = THREAD_INITIAL_STACK_TOP(thread);
+    context->ra = (unative_t)&thread_entry_func_wrapper;
+    context->status = 0xff01;
+
+    thread->stack_top = (unative_t)context;
 
     dprintk("New thread allocated: %pT\n", thread);
 
@@ -84,7 +85,7 @@ thread_t* thread_get_current(void) {
 /** Yield the processor. */
 void thread_yield(void) {
     dprintk("\n");
-
+    thread_get_current()->stack_top = debug_get_stack_pointer();
     scheduler_schedule_next();
 }
 
@@ -190,7 +191,7 @@ void thread_switch_to(thread_t* thread) {
 
     void* stack_top_old = current_thread ? (void*)current_thread->stack_top :
             (void*)debug_get_stack_pointer();
-    void* stack_top_new = (void*)&thread->context;
+    void* stack_top_new = (void*)thread->stack_top;
 
     cpu_switch_context(&stack_top_old, &stack_top_new, 1);
 }
