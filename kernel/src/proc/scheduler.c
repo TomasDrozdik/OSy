@@ -1,10 +1,10 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2019 Charles University
 
-#include <debug.h>
-#include <proc/scheduler.h>
 #include <adt/list.h>
+#include <debug.h>
 #include <mm/heap.h>
+#include <proc/scheduler.h>
 
 #include <lib/print.h>
 
@@ -124,7 +124,7 @@ void scheduler_suspend_thread(thread_t* thread) {
  * @retval EEXITED Thread already finished its execution.
  * TODO: @retval EINVAL Invalid thread.
  */
-errno_t scheduler_wakeup_thread(thread_t *thread) {
+errno_t scheduler_wakeup_thread(thread_t* thread) {
     if (thread->state == FINISHED) {
         return EEXITED;
     } else if (thread->state == READY) {
@@ -146,9 +146,8 @@ errno_t scheduler_wakeup_thread(thread_t *thread) {
  * the current one.
 */
 void scheduler_schedule_next(void) {
-    if (scheduled_thread == NULL) {  // Very first run of this function
-        scheduled_thread =
-                list_item(ready_thread_queue.head.next, thread_t, link);
+    if (scheduled_thread == NULL) { // Very first run of this function
+        scheduled_thread = list_item(ready_thread_queue.head.next, thread_t, link);
     } else if (!changed_scheduled_thread) {
         pick_next_scheduled_thread();
     } else {
@@ -171,7 +170,7 @@ static inline void schedule(thread_t* thread) {
     assert(thread->state == READY);
     if (scheduled_thread != NULL) {
         list_add(scheduled_thread->link.prev, &thread->link);
-    } else {  // Init thread
+    } else { // Init thread
         list_append(&ready_thread_queue, &thread->link);
     }
 }
