@@ -83,13 +83,6 @@ typedef struct block_header {
     link_t free_link;
 } block_header_t;
 
-/** Initialized heap.
- *
- * Uses pointer to kernel end and size of the available memory to determine
- * pointer to the end of available memory i.e. heap.
- */
-static void heap_init(void);
-
 /** Align the pointer.
  * @param ptr Pointer to align.
  * @param size Alignt according to the given size.
@@ -146,7 +139,7 @@ void kfree(void* ptr) {
     compact(&header->link, header->link.next);
 }
 
-static void heap_init(void) {
+void heap_init(void) {
     list_init(&blocks);
     list_init(&free_blocks);
 

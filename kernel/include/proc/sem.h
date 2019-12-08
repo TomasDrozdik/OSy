@@ -13,11 +13,15 @@
 #include <adt/list.h>
 #include <errno.h>
 #include <types.h>
+#include <proc/scheduler.h>
+#include <proc/thread.h>
 
 typedef struct {
     int value;
 } sem_t;
 
+sem_list_item sem_list_find(sem_t* sem);
+void wake_up_next(sem_list_item item);
 errno_t sem_init(sem_t* sem, int value);
 void sem_destroy(sem_t* sem);
 int sem_get_value(sem_t* sem);
