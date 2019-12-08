@@ -13,15 +13,6 @@
  */
 #define MIN_ALLOCATION_SIZE 4
 
-/** Checks if given link valid i.e. not head of the list.
- *
- *  Explanation: Head of the list does not contain block_header structure.
- *
- * @param LINKPTR Pointer to link structure.
- * @returns True if valid, false otherwise.
- */
-#define VALID_HEADER_LINK(LINKPTR) (LINKPTR != &blocks.head)
-
 /** Gets pointer to the header of a block whith the corresponding payload.
  *
  * @param PTR Pointer to payload, i.e. returned by kmalloc.
@@ -54,7 +45,7 @@
  * @returns Size of a block in size_t type.
  */
 #define BLOCK_SIZE(HEADERPTR) ((size_t) \
-    (VALID_HEADER_LINK(HEADERPTR->link.next) ? \
+    (valid_link(blocks, HEADERPTR->link.next) ? \
         (uintptr_t)HEADERPTR->link.next - (uintptr_t)&HEADERPTR->link : \
         end_ptr - (uintptr_t)HEADERPTR))
 
@@ -67,28 +58,18 @@
 #define IS_FREE(HEADERPTR) \
     link_is_connected(&HEADERPTR->free_link)
 
-/** Indicates if heap_init has been called. */
-static bool heap_initialized = false;
-
 /** List of all blocks in heap. */
 static list_t blocks;
 static list_t free_blocks;
 static uintptr_t end_ptr;
 
-/** Each block has a header which contains its size, free flag and link which
- *  links it to all othe blocks.
+/** Each block has a header which contains its size i.e size of block header +
+ *  block payload, free flag and a link which links it to all othe blocks.
  */
 typedef struct block_header {
     link_t link;
     link_t free_link;
 } block_header_t;
-
-/** Initialized heap.
- *
- * Uses pointer to kernel end and size of the available memory to determine
- * pointer to the end of available memory i.e. heap.
- */
-static void heap_init(void);
 
 /** Align the pointer.
  * @param ptr Pointer to align.
@@ -104,12 +85,20 @@ static inline uintptr_t align(uintptr_t ptr, size_t size);
  */
 static inline void compact(link_t* prev, link_t* next);
 
-void* kmalloc(size_t size) {
-    if (!heap_initialized) {
-        heap_init();
-        heap_initialized = true;
-    }
+void heap_init(void) {
+    list_init(&blocks);
+    list_init(&free_blocks);
 
+    uintptr_t start_ptr = align(debug_get_kernel_endptr(), MIN_ALLOCATION_SIZE);
+    end_ptr = debug_get_base_memory_endptr();
+
+    block_header_t* initial_header = (block_header_t*)start_ptr;
+
+    list_append(&blocks, &initial_header->link);
+    list_append(&free_blocks, &initial_header->free_link);
+}
+
+void* kmalloc(size_t size) {
     size = align(size, MIN_ALLOCATION_SIZE);
     size_t actual_size = size + sizeof(block_header_t);
 
@@ -146,20 +135,10 @@ void kfree(void* ptr) {
     compact(&header->link, header->link.next);
 }
 
-static void heap_init(void) {
-    list_init(&blocks);
-    list_init(&free_blocks);
 
-    uintptr_t start_ptr = align(debug_get_kernel_endptr(), MIN_ALLOCATION_SIZE);
-    end_ptr = debug_get_base_memory_endptr();
-
-    block_header_t* initial_header = (block_header_t*)start_ptr;
-
-    list_append(&blocks, &initial_header->link);
-    list_append(&free_blocks, &initial_header->free_link);
-}
 
 static inline uintptr_t align(uintptr_t ptr, size_t size) {
+    // TODO: consider using trick with next power of 2
     size_t remainder;
     remainder = ptr % size;
     if (remainder == 0) {
@@ -169,9 +148,9 @@ static inline uintptr_t align(uintptr_t ptr, size_t size) {
 }
 
 static inline void compact(link_t* prev, link_t* next) {
-    block_header_t* prev_header = VALID_HEADER_LINK(prev) ?
+    block_header_t* prev_header = valid_link(blocks, prev) ?
             HEADER_FROM_LINK(prev) : NULL;
-    block_header_t* next_header = VALID_HEADER_LINK(next) ?
+    block_header_t* next_header = valid_link(blocks, next) ?
             HEADER_FROM_LINK(next) : NULL;
     if (prev_header && next_header &&
             IS_FREE(prev_header) && IS_FREE(next_header)) {
