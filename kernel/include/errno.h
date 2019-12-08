@@ -11,6 +11,7 @@
 #define ENOMEM 2
 #define EBUSY 3
 #define EEXITED 4
+#define EINVAL 5
 
 typedef int errno_t;
 
@@ -26,6 +27,8 @@ static inline const char* errno_as_str(errno_t err) {
         return "resource is busy";
     case EEXITED:
         return "thread already exited";
+    case EINVAL:
+        return "invalid value";
     default:
         return "unknown error";
     }

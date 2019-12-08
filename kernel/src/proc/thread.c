@@ -1,16 +1,49 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2019 Charles University
 
+#include <lib/print.h>
 #include <proc/context.h>
 #include <proc/scheduler.h>
 #include <proc/thread.h>
+#include <adt/list.h>
+#include <mm/heap.h>
+#include <debug/code.h>
+
+/** Calculates address of initial stack top of given thread.
+ *
+ * @param THREADPTR Pointer to thread.
+ * @return Address of stack top of given thread in unative_t.
+ */
+#define THREAD_INITIAL_STACK_TOP(THREADPTR) \
+    ((unative_t)((uintptr_t)THREADPTR + sizeof(thread_t) + THREAD_STACK_SIZE))
+
+/** Calculates pointer to initial context of given thread.
+ *
+ * This context is stored at the top of the stack.
+ *
+ * @param THREADPTR Pointer to thread.
+ * @returns Pointer to initial context_t.
+ */
+#define THREAD_INITIAL_CONTEXT(THREADPTR) \
+    ((context_t*)(THREAD_INITIAL_STACK_TOP(THREADPTR) - sizeof(context_t)))
+
+/** Points to currently running thread_t.
+ *
+ * WARNING: this shoud be changed ONLY immediatelly followed by context switch
+ *          i.e. inside of thread_switch_to function.
+ */
+static thread_t* running_thread;
+
+/** Wraps the thread_entry_function so that it always calls finish.
+ */
+static void thread_entry_func_wrapper(void);
 
 /** Initialize support for threading.
  *
  * Called once at system boot.
  */
 void threads_init(void) {
-
+    running_thread = NULL;
 }
 
 /** Create a new thread.
@@ -19,6 +52,9 @@ void threads_init(void) {
  *
  * This function allocates space for both stack and the thread_t structure
  * (hence the double <code>**</code> in <code>thread_out</code>.
+ *
+ * WARNIGN: Caller is responsible for freeing this pointer after the thread
+ *          finishes and caller has dealt with return value if need be.
  *
  * @param thread_out Where to place the initialized thread_t structure.
  * @param entry Thread entry function.
@@ -31,7 +67,28 @@ void threads_init(void) {
  * @retval INVAL Invalid flags (unused).
  */
 errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* data, unsigned int flags, const char* name) {
-    return ENOIMPL;
+    // Allocate enought memory for stack and thread_t structure.
+    // No heap is available.
+    thread_t* thread = (thread_t*)kmalloc(sizeof(thread_t) + THREAD_STACK_SIZE);
+    if (thread == NULL) {
+        return ENOMEM;
+    }
+
+    // Set up thread_t structure.
+    strncpy((char*)thread->name, name, THREAD_NAME_MAX_LENGTH);
+    thread->entry_func = entry;
+    thread->data = data;
+    thread->state = READY;
+    thread->context = THREAD_INITIAL_CONTEXT(thread);
+
+    // Set up context
+    thread->context->sp = THREAD_INITIAL_STACK_TOP(thread);
+    thread->context->ra = (unative_t)&thread_entry_func_wrapper;
+    thread->context->status = 0xff01;
+
+    *thread_out = thread;
+    scheduler_add_ready_thread(*thread_out);
+    return EOK;
 }
 
 /** Return information about currently executing thread.
@@ -39,17 +96,18 @@ errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* da
  * @retval NULL When no thread was started yet.
  */
 thread_t* thread_get_current(void) {
-    return NULL;
+    return running_thread;
 }
 
 /** Yield the processor. */
 void thread_yield(void) {
-
+    scheduler_schedule_next();
 }
 
 /** Current thread stops execution and is not scheduled until woken up. */
 void thread_suspend(void) {
-
+    scheduler_suspend_thread(running_thread);
+    scheduler_schedule_next();
 }
 
 /** Terminate currently running thread.
@@ -63,9 +121,18 @@ void thread_suspend(void) {
  * @param retval Data to return in thread_join.
  */
 void thread_finish(void* retval) {
-    while (1) {
-    }
+    running_thread->state = FINISHED;
+
+    running_thread->retval = retval;
+
+    assert(running_thread == scheduler_get_scheduled_thread());
+    scheduler_remove_thread(running_thread);
+    scheduler_schedule_next();
+
+    // Noreturn function
+    while (1);
 }
+
 
 /** Tells if thread already called thread_finish() or returned from the entry
  * function.
@@ -73,7 +140,7 @@ void thread_finish(void* retval) {
  * @param thread Thread in question.
  */
 bool thread_has_finished(thread_t* thread) {
-    return false;
+    return thread->state == FINISHED;
 }
 
 /** Wakes-up existing thread.
@@ -91,7 +158,7 @@ bool thread_has_finished(thread_t* thread) {
  * @retval EEXITED Thread already finished its execution.
  */
 errno_t thread_wakeup(thread_t* thread) {
-    return ENOIMPL;
+    return scheduler_wakeup_thread(thread);
 }
 
 /** Joins another thread (waits for it to terminate.
@@ -107,7 +174,18 @@ errno_t thread_wakeup(thread_t* thread) {
  * @retval EINVAL Invalid thread.
  */
 errno_t thread_join(thread_t* thread, void** retval) {
-    return ENOIMPL;
+    if (thread == NULL) {
+        return EINVAL;
+    }
+
+    while (thread->state != FINISHED) {
+        thread_yield();
+    }
+
+    if (retval) {
+        *retval = thread->retval;
+    }
+    return EOK;
 }
 
 /** Switch CPU context to a different thread.
@@ -118,5 +196,22 @@ errno_t thread_join(thread_t* thread, void** retval) {
  * @param thread Thread to switch to.
  */
 void thread_switch_to(thread_t* thread) {
+    void** stack_top_old;
+    if (running_thread == NULL) {
+        stack_top_old = (void**)debug_get_stack_pointer();
+    } else {
+        stack_top_old = (void**)&thread_get_current()->context;
+    }
 
+    void** stack_top_new = (void**)&thread->context;
+
+    running_thread = scheduler_get_scheduled_thread();
+
+    cpu_switch_context(stack_top_old, stack_top_new, 1);
+}
+
+static void thread_entry_func_wrapper() {
+    panic_if(running_thread == NULL,
+            "thread_entry_func_wrapper: running_thread == NULL");
+    thread_finish(running_thread->entry_func(running_thread->data));
 }

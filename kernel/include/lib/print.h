@@ -64,4 +64,6 @@ int int32_to_str(int32_t n, base_t base, char* buf, size_t buflen);
  */
 int uint32_to_str(uint32_t n, base_t base, char* buf, size_t buflen);
 
+char* strncpy(char* dest, const char* src, size_t n);
+
 #endif
