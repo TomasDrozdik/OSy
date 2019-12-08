@@ -65,8 +65,6 @@ void scheduler_init(void) {
  * @param thread Thread to make runnable.
  */
 void scheduler_add_ready_thread(thread_t* thread) {
-    dprintk("\n");
-
     assert(!link_is_connected(&thread->link));
     schedule(thread);
 }
@@ -81,8 +79,6 @@ void scheduler_add_ready_thread(thread_t* thread) {
  * @param thread Thread to remove from the queue.
  */
 void scheduler_remove_thread(thread_t* thread) {
-    dprintk("\n");
-
     assert(thread->state == FINISHED);
     if (thread == scheduled_thread) {
         pick_next_scheduled_thread();
@@ -129,8 +125,6 @@ void scheduler_suspend_thread(thread_t* thread) {
  * TODO: @retval EINVAL Invalid thread.
  */
 errno_t scheduler_wakeup_thread(thread_t *thread) {
-    dprintk("Waking up %pT\n", thread);
-
     if (thread->state == FINISHED) {
         return EEXITED;
     } else if (thread->state == READY) {
@@ -160,9 +154,6 @@ void scheduler_schedule_next(void) {
     } else {
         changed_scheduled_thread = false;
     }
-
-    dprintk("Scheduled item: %p, thread_name: %s\n",
-            &scheduled_thread->link, scheduled_thread->name);
 
     assert(scheduled_thread->state == READY);
     thread_switch_to(scheduled_thread);

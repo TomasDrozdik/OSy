@@ -67,8 +67,6 @@ void threads_init(void) {
  * @retval INVAL Invalid flags (unused).
  */
 errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* data, unsigned int flags, const char* name) {
-    dprintk("\n");
-
     // Allocate enought memory for stack and thread_t structure.
     // No heap is available.
     thread_t* thread = (thread_t*)kmalloc(sizeof(thread_t) + THREAD_STACK_SIZE);
@@ -88,8 +86,6 @@ errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* da
     thread->context->ra = (unative_t)&thread_entry_func_wrapper;
     thread->context->status = 0xff01;
 
-    dprintk("New thread allocated: %pT\n", thread);
-
     *thread_out = thread;
     scheduler_add_ready_thread(*thread_out);
     return EOK;
@@ -105,15 +101,11 @@ thread_t* thread_get_current(void) {
 
 /** Yield the processor. */
 void thread_yield(void) {
-    dprintk("\n");
-
     scheduler_schedule_next();
 }
 
 /** Current thread stops execution and is not scheduled until woken up. */
 void thread_suspend(void) {
-    dprintk("\n");
-
     scheduler_suspend_thread(running_thread);
     scheduler_schedule_next();
 }
@@ -129,8 +121,6 @@ void thread_suspend(void) {
  * @param retval Data to return in thread_join.
  */
 void thread_finish(void* retval) {
-    dprintk("%pT\n", running_thread);
-
     running_thread->state = FINISHED;
 
     running_thread->retval = retval;
@@ -150,8 +140,6 @@ void thread_finish(void* retval) {
  * @param thread Thread in question.
  */
 bool thread_has_finished(thread_t* thread) {
-    dprintk("\n");
-
     return thread->state == FINISHED;
 }
 
@@ -170,8 +158,6 @@ bool thread_has_finished(thread_t* thread) {
  * @retval EEXITED Thread already finished its execution.
  */
 errno_t thread_wakeup(thread_t* thread) {
-    dprintk("\n");
-
     return scheduler_wakeup_thread(thread);
 }
 
@@ -188,14 +174,11 @@ errno_t thread_wakeup(thread_t* thread) {
  * @retval EINVAL Invalid thread.
  */
 errno_t thread_join(thread_t* thread, void** retval) {
-    dprintk("\n");
-
     if (thread == NULL) {
         return EINVAL;
     }
 
     while (thread->state != FINISHED) {
-        dprintk("%s WAITS FOR %s\n", thread_get_current()->name, thread->name);
         thread_yield();
     }
 
@@ -213,8 +196,6 @@ errno_t thread_join(thread_t* thread, void** retval) {
  * @param thread Thread to switch to.
  */
 void thread_switch_to(thread_t* thread) {
-    dprintk("%pT\n", thread);
-
     void** stack_top_old;
     if (running_thread == NULL) {
         stack_top_old = (void**)debug_get_stack_pointer();
@@ -230,11 +211,7 @@ void thread_switch_to(thread_t* thread) {
 }
 
 static void thread_entry_func_wrapper() {
-    dprintk("\n");
-
     panic_if(running_thread == NULL,
             "thread_entry_func_wrapper: running_thread == NULL");
-    dprintk("%pT\n", running_thread);
-
     thread_finish(running_thread->entry_func(running_thread->data));
 }
