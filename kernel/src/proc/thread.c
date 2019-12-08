@@ -9,6 +9,17 @@
 #include <mm/heap.h>
 #include <debug/code.h>
 
+/** Indicates that no thread has been switched to yet.
+ */
+static bool is_first;
+
+/** Points to currently running thread_t.
+ *
+ * This shoud be changed ONLY immediatelly following context switch i.e. inside
+ * of thread_switch_to function.
+ */
+static thread_t* current_thread;
+
 /** Wraps the thread_entry_function so that it always calls finish.
  */
 static void thread_entry_func_wrapper(void);
@@ -18,7 +29,8 @@ static void thread_entry_func_wrapper(void);
  * Called once at system boot.
  */
 void threads_init(void) {
-
+    is_first = true;
+    current_thread = NULL;
 }
 
 /** Create a new thread.
@@ -51,20 +63,17 @@ errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* da
         return ENOMEM;
     }
 
-
     // Set up thread_t structure.
     strncpy((char*)thread->name, name, THREAD_NAME_MAX_LENGTH);
     thread->entry_func = entry;
     thread->data = data;
     thread->state = READY;
+    thread->context = THREAD_INITIAL_CONTEXT(thread);
 
-    // Set up stack
-    context_t* context = THREAD_INITIAL_CONTEXT(thread);
-    context->sp = THREAD_INITIAL_STACK_TOP(thread);
-    context->ra = (unative_t)&thread_entry_func_wrapper;
-    context->status = 0xff01;
-
-    thread->stack_top = (unative_t)context;
+    // Set up context
+    thread->context->sp = THREAD_INITIAL_STACK_TOP(thread);
+    thread->context->ra = (unative_t)&thread_entry_func_wrapper;
+    thread->context->status = 0xff01;
 
     dprintk("New thread allocated: %pT\n", thread);
 
@@ -78,14 +87,13 @@ errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* da
  * @retval NULL When no thread was started yet.
  */
 thread_t* thread_get_current(void) {
-
-    return scheduler_get_running_thread();
+    return current_thread;
 }
 
 /** Yield the processor. */
 void thread_yield(void) {
     dprintk("\n");
-    thread_get_current()->stack_top = debug_get_stack_pointer();
+
     scheduler_schedule_next();
 }
 
@@ -94,6 +102,7 @@ void thread_suspend(void) {
     dprintk("\n");
 
     scheduler_suspend_current_thread();
+    scheduler_schedule_next();
 }
 
 /** Terminate currently running thread.
@@ -107,16 +116,17 @@ void thread_suspend(void) {
  * @param retval Data to return in thread_join.
  */
 void thread_finish(void* retval) {
-    dprintk("\n");
+    dprintk("%pT\n", current_thread);
 
-    thread_t* current_thread = thread_get_current();
     current_thread->state = FINISHED;
+
     current_thread->retval = retval;
 
+    assert(current_thread == scheduler_get_current_scheduled_thread());
     scheduler_remove_current_thread();
     scheduler_schedule_next();
 
-    // Noreturn functionw
+    // Noreturn function
     while (1);
 }
 
@@ -129,7 +139,7 @@ void thread_finish(void* retval) {
 bool thread_has_finished(thread_t* thread) {
     dprintk("\n");
 
-    return false;
+    return thread->state == FINISHED;
 }
 
 /** Wakes-up existing thread.
@@ -171,9 +181,13 @@ errno_t thread_join(thread_t* thread, void** retval) {
         return EINVAL;
     }
     while (thread->state != FINISHED) {
+        dprintk("%s WAITS FOR %s\n", thread_get_current()->name, thread->name);
         thread_yield();
     }
-    *retval = thread->retval;
+    if (retval) {
+        *retval = thread->retval;
+        dprintk("ASSIGNNING RETVAL: %p", *retval);
+    }
     return EOK;
 }
 
@@ -187,19 +201,26 @@ errno_t thread_join(thread_t* thread, void** retval) {
 void thread_switch_to(thread_t* thread) {
     dprintk("%pT\n", thread);
 
-    thread_t* current_thread = thread_get_current();
+    void** stack_top_old;
+    if (is_first) {
+        stack_top_old = (void**)debug_get_stack_pointer();
+        is_first = false;
+    } else {
+        stack_top_old = (void**)&thread_get_current()->context;
+    }
 
-    void* stack_top_old = current_thread ? (void*)current_thread->stack_top :
-            (void*)debug_get_stack_pointer();
-    void* stack_top_new = (void*)thread->stack_top;
+    void** stack_top_new = (void**)&thread->context;
 
-    cpu_switch_context(&stack_top_old, &stack_top_new, 1);
+    current_thread = scheduler_get_current_scheduled_thread();
+
+    cpu_switch_context(stack_top_old, stack_top_new, 1);
 }
 
 static void thread_entry_func_wrapper() {
     dprintk("\n");
 
     thread_t* current_thread = thread_get_current();
+    dprintk("%pT\n", current_thread);
     panic_if(current_thread == NULL,
             "thread_entry_func_wrapper: current_thread == NULL");
 

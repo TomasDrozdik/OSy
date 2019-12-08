@@ -25,6 +25,6 @@ errno_t scheduler_wakeup_thread(thread_t* id);
 
 void scheduler_schedule_next(void);
 
-thread_t* scheduler_get_running_thread(void);
+thread_t* scheduler_get_current_scheduled_thread(void);
 
 #endif

@@ -42,7 +42,10 @@ struct thread {
     void * data;
     void* retval;
     thread_state_t state;
-    unative_t stack_top;
+
+    // Pointer to where context (i.e. stack top in terms of cpu_context_switch)
+    // is stored.
+    context_t* context;
 };
 
 void threads_init(void);

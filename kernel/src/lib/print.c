@@ -333,8 +333,7 @@ static void print_thread(thread_t* thread) {
            "\tstate: %s"
            "\tentry_func: %p"
            "\tdata: %p"
-           "\tstack_top %p"
-           "\tcontext: %p"
+           "\tcontext %p"
            "\tsp: %p"
            "\tra: %p",
            thread,
@@ -343,10 +342,9 @@ static void print_thread(thread_t* thread) {
                    (thread->state == SUSPENDED) ? "SUSPENDED" : "FINISHED",
            thread->entry_func,
            thread->data,
-           thread->stack_top,
-           THREAD_INITIAL_CONTEXT(thread),
-           THREAD_INITIAL_CONTEXT(thread)->sp,
-           THREAD_INITIAL_CONTEXT(thread)->ra);
+           thread->context,
+           thread->context->sp,
+           thread->context->ra);
 }
 
 static void uint32_to_str_impl(uint32_t n, char* buf, int order,

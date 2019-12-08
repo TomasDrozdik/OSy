@@ -28,23 +28,27 @@ static list_t suspended_thread_queue;
 static size_t free_indices_stack_top;
 static size_t* free_indices_stack;  // Grows downwards
 
+static bool changed_current_item;
+
 /** Scheduling stategy.
  *
  * Puts item in list as the last one i.e. before current thread.
  */
 static inline void schedule(queue_item_t* item);
 
+static inline void pick_next_current_item(void);
+
 /** Increases the size of preallocated space according to external size of the
  *  thread pool.
  */
 static void resize(void);
 
-static void debug_print_list() {
-    dprintk("\nScheduler state:\n");
-    list_foreach(ready_thread_queue, queue_item_t, link, queue_item) {
-        printk("\titem[%p] %pT\n", &queue_item->link, queue_item->thread);
-    }
-}
+//static void debug_print_list() {
+//    dprintk("\nScheduler state: %pL\n", &ready_thread_queue);
+//    list_foreach(ready_thread_queue, queue_item_t, link, queue_item) {
+//        printk("\titem[%p -> %p] %pT\n", &queue_item->link, queue_item->link.next, queue_item->thread);
+//    }
+//}
 
 /** Initialize support for scheduling.
  *
@@ -72,6 +76,8 @@ void scheduler_init(void) {
 
     // Since no thread is running set this to NULL.
     current_item = NULL;
+
+    changed_current_item = false;
 }
 
 /** Marks given thread as ready to be executed.
@@ -85,7 +91,7 @@ void scheduler_add_ready_thread(thread_t* thread) {
     dprintk("\n");
 
     // Check if there is a free space in preallocated array of queue_item_t.
-    if (free_indices_stack_top == queue_size) {
+    if (free_indices_stack_top > queue_size) {
         resize();
     }
 
@@ -95,8 +101,8 @@ void scheduler_add_ready_thread(thread_t* thread) {
     new->thread = thread;
 
     if (current_item == NULL) {
-        dprintk("Thread %s schedules in %pL\n", new->thread->name,
-                &ready_thread_queue);
+//        dprintk("Thread %s schedules in %pL\n", new->thread->name,
+//                &ready_thread_queue);
         list_append(&ready_thread_queue, &new->link);
     } else {
         schedule(new);
@@ -115,9 +121,13 @@ void scheduler_remove_thread(thread_t* thread) {
 
     list_foreach(ready_thread_queue, queue_item_t, link, queue_item) {
         if (queue_item->thread == thread) {
-            list_remove(&queue_item->link);
-            free_indices_stack[++free_indices_stack_top] =
-                    INDEX_OF(queue_item, schedule_pool);
+            if (queue_item->thread == current_item->thread) {
+                scheduler_remove_current_thread();
+            } else {
+                list_remove(&queue_item->link);
+                free_indices_stack[++free_indices_stack_top] =
+                        INDEX_OF(queue_item, schedule_pool);
+            }
             return;
         }
     }
@@ -126,9 +136,21 @@ void scheduler_remove_thread(thread_t* thread) {
 void scheduler_remove_current_thread() {
     dprintk("\n");
 
-    list_remove(&current_item->link);
+    queue_item_t* item_to_remove = current_item;
+
+    // Select new current_item, set flag for it and check that this is NOT the
+    // last thread.
+    pick_next_current_item();
+    changed_current_item = true;
+    panic_if(current_item == item_to_remove, "Removing last running thread.");
+
+    // Unlink previous item.
+    list_remove(&item_to_remove->link);
+
+    // Make space of item_to_remove available.
     free_indices_stack[++free_indices_stack_top] =
-            INDEX_OF(current_item, schedule_pool);
+            INDEX_OF(item_to_remove, schedule_pool);
+
 }
 
 /** Suspends given thread in scheduling.
@@ -138,21 +160,44 @@ void scheduler_remove_current_thread() {
  * @param thread Thread to remove from the queue.
  */
 void scheduler_suspend_thread(thread_t* thread) {
-    // TODO:
-    panic();
+    panic_if(current_item->thread->state != READY,
+            "Suspending thread which is not READY.");
+
+
+    list_foreach(ready_thread_queue, queue_item_t, link, queue_item) {
+        if (queue_item->thread == thread) {
+            if (queue_item->thread == current_item->thread) {
+                scheduler_suspend_current_thread();
+            } else {
+                thread->state = SUSPENDED;
+                list_remove(&queue_item->link);
+                list_append(&suspended_thread_queue, &queue_item->link);
+            }
+            return;
+        }
+    }
 }
 
 void scheduler_suspend_current_thread() {
     dprintk("\n");
 
+    panic_if(current_item->thread->state != READY,
+            "Suspending thread which is not READY.");
+
+    queue_item_t* item_to_suspend = current_item;
+
+    // Pick next current_item, note that fact and check if it was the last one.
+    pick_next_current_item();
+    changed_current_item = true;
+    panic_if(current_item == item_to_suspend,
+            "Suspending last running thread.");
+
     // Remove this thread from the list of ready threads.
-    list_remove(&current_item->link);
+    list_remove(&item_to_suspend->link);
 
     // Add it to queue of suspended threads.
-    current_item->thread->state = SUSPENDED;
-    list_append(&suspended_thread_queue, &current_item->link);
-
-    scheduler_schedule_next();
+    item_to_suspend->thread->state = SUSPENDED;
+    list_append(&suspended_thread_queue, &item_to_suspend->link);
 }
 
 
@@ -172,16 +217,19 @@ void scheduler_suspend_current_thread() {
  */
 errno_t scheduler_wakeup_thread(thread_t *id) {
     dprintk("\n");
+    dprintk("Waking up %pT\n", id);
 
     if (id->state == FINISHED) {
         return EEXITED;
+    } else if (id->state == READY) {
+        return EOK;
     }
-    list_foreach(suspended_thread_queue, queue_item_t, link, suspend_item) {
-        if (suspend_item->thread == id) {
-            list_remove(&suspend_item->link);
+    list_foreach(suspended_thread_queue, queue_item_t, link, suspended_item) {
+        if (suspended_item->thread == id) {
+            list_remove(&suspended_item->link);
 
-            suspend_item->thread->state = READY;
-            schedule(suspend_item);
+            suspended_item->thread->state = READY;
+            schedule(suspended_item);
             return EOK;
         }
     }
@@ -190,41 +238,36 @@ errno_t scheduler_wakeup_thread(thread_t *id) {
 
 /** Switch to next thread in the queue. */
 void scheduler_schedule_next(void) {
-    dprintk("Schedule next from %pL\n", &ready_thread_queue);
+//    dprintk("Schedule next from %pL\n", &ready_thread_queue);
 
-    debug_print_list();
-
-    if (current_item == NULL) {
+    if (current_item == NULL) {  // Very first run of this function
         current_item = list_item(ready_thread_queue.head.next, queue_item_t, link);
+    } else if (!changed_current_item) {
+        pick_next_current_item();
+    } else {
+        changed_current_item = false;
     }
 
-    link_t* next_link = current_item->link.next;
-    if (!valid_link(ready_thread_queue, next_link)) {
-        next_link = next_link->next;
-        assert(valid_link(ready_thread_queue, next_link));
-    }
-
-    current_item = list_item(next_link, queue_item_t, link);
-
-    dprintk("scheduled item: %p, thread_name: %s\n", &current_item->link, current_item->thread->name);
+    dprintk("Scheduled item: %p, thread_name: %s\n",
+            &current_item->link, current_item->thread->name);
 
     assert(current_item->thread->state == READY);
     thread_switch_to(current_item->thread);
 }
 
-thread_t* scheduler_get_running_thread() {
+thread_t* scheduler_get_current_scheduled_thread(void) {
     return (current_item == NULL) ? NULL : current_item->thread;
 }
 
 static inline void schedule(queue_item_t* item) {
-    dprintk("Scheduling thread %s in %pL\n", item->thread->name,
-            &ready_thread_queue);
+//    dprintk("Scheduling thread %s in %pL\n", item->thread->name,
+//            &ready_thread_queue);
 
-    // TODO append before current thread, check for valid_header
-    list_append(&ready_thread_queue, &item->link);
+    assert(current_item != NULL);
+    list_add(current_item->link.prev, &item->link);
 
-    dprintk("Thread %s is scheduled in %pL\n", item->thread->name,
-            &ready_thread_queue);
+//    dprintk("Thread %s is scheduled in %pL\n", item->thread->name,
+//            &ready_thread_queue);
 }
 
 /** Double the size of the thread_queue, free_indices_stack and correct pointers
@@ -246,4 +289,24 @@ static inline void schedule(queue_item_t* item) {
 static void resize() {
     // TODO:
     panic("resize\n");
+}
+
+static inline void pick_next_current_item() {
+    panic_if(list_is_empty(&ready_thread_queue),
+            "No active threads in scheduler.");
+
+    link_t* next_link = current_item->link.next;
+    if (!valid_link(ready_thread_queue, next_link)) {
+        // next_link points to head of the list so picking another next link
+        // would point to valid item since the list is not empty, checked above.
+        next_link = next_link->next;
+        assert(valid_link(ready_thread_queue, next_link));
+    }
+
+    current_item = list_container_of(next_link, queue_item_t, link);
+
+    if (current_item->thread->state != READY) {
+        dprintk("unREADY in ready_queue %pT\n", current_item->thread);
+        assert(current_item->thread->state == READY);
+    }
 }
