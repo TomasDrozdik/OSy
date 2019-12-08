@@ -9,16 +9,30 @@
 #include <mm/heap.h>
 #include <debug/code.h>
 
-/** Indicates that no thread has been switched to yet.
+/** Calculates address of initial stack top of given thread.
+ *
+ * @param THREADPTR Pointer to thread.
+ * @return Address of stack top of given thread in unative_t.
  */
-static bool is_first;
+#define THREAD_INITIAL_STACK_TOP(THREADPTR) \
+    ((unative_t)((uintptr_t)THREADPTR + sizeof(thread_t) + THREAD_STACK_SIZE))
+
+/** Calculates pointer to initial context of given thread.
+ *
+ * This context is stored at the top of the stack.
+ *
+ * @param THREADPTR Pointer to thread.
+ * @returns Pointer to initial context_t.
+ */
+#define THREAD_INITIAL_CONTEXT(THREADPTR) \
+    ((context_t*)(THREAD_INITIAL_STACK_TOP(THREADPTR) - sizeof(context_t)))
 
 /** Points to currently running thread_t.
  *
- * This shoud be changed ONLY immediatelly following context switch i.e. inside
- * of thread_switch_to function.
+ * WARNING: this shoud be changed ONLY immediatelly followed by context switch
+ *          i.e. inside of thread_switch_to function.
  */
-static thread_t* current_thread;
+static thread_t* running_thread;
 
 /** Wraps the thread_entry_function so that it always calls finish.
  */
@@ -29,8 +43,7 @@ static void thread_entry_func_wrapper(void);
  * Called once at system boot.
  */
 void threads_init(void) {
-    is_first = true;
-    current_thread = NULL;
+    running_thread = NULL;
 }
 
 /** Create a new thread.
@@ -87,7 +100,7 @@ errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* da
  * @retval NULL When no thread was started yet.
  */
 thread_t* thread_get_current(void) {
-    return current_thread;
+    return running_thread;
 }
 
 /** Yield the processor. */
@@ -101,7 +114,7 @@ void thread_yield(void) {
 void thread_suspend(void) {
     dprintk("\n");
 
-    scheduler_suspend_current_thread();
+    scheduler_suspend_thread(running_thread);
     scheduler_schedule_next();
 }
 
@@ -116,14 +129,14 @@ void thread_suspend(void) {
  * @param retval Data to return in thread_join.
  */
 void thread_finish(void* retval) {
-    dprintk("%pT\n", current_thread);
+    dprintk("%pT\n", running_thread);
 
-    current_thread->state = FINISHED;
+    running_thread->state = FINISHED;
 
-    current_thread->retval = retval;
+    running_thread->retval = retval;
 
-    assert(current_thread == scheduler_get_current_scheduled_thread());
-    scheduler_remove_current_thread();
+    assert(running_thread == scheduler_get_scheduled_thread());
+    scheduler_remove_thread(running_thread);
     scheduler_schedule_next();
 
     // Noreturn function
@@ -180,13 +193,14 @@ errno_t thread_join(thread_t* thread, void** retval) {
     if (thread == NULL) {
         return EINVAL;
     }
+
     while (thread->state != FINISHED) {
         dprintk("%s WAITS FOR %s\n", thread_get_current()->name, thread->name);
         thread_yield();
     }
+
     if (retval) {
         *retval = thread->retval;
-        dprintk("ASSIGNNING RETVAL: %p", *retval);
     }
     return EOK;
 }
@@ -202,16 +216,15 @@ void thread_switch_to(thread_t* thread) {
     dprintk("%pT\n", thread);
 
     void** stack_top_old;
-    if (is_first) {
+    if (running_thread == NULL) {
         stack_top_old = (void**)debug_get_stack_pointer();
-        is_first = false;
     } else {
         stack_top_old = (void**)&thread_get_current()->context;
     }
 
     void** stack_top_new = (void**)&thread->context;
 
-    current_thread = scheduler_get_current_scheduled_thread();
+    running_thread = scheduler_get_scheduled_thread();
 
     cpu_switch_context(stack_top_old, stack_top_new, 1);
 }
@@ -219,10 +232,9 @@ void thread_switch_to(thread_t* thread) {
 static void thread_entry_func_wrapper() {
     dprintk("\n");
 
-    thread_t* current_thread = thread_get_current();
-    dprintk("%pT\n", current_thread);
-    panic_if(current_thread == NULL,
-            "thread_entry_func_wrapper: current_thread == NULL");
+    panic_if(running_thread == NULL,
+            "thread_entry_func_wrapper: running_thread == NULL");
+    dprintk("%pT\n", running_thread);
 
-    thread_finish(current_thread->entry_func(current_thread->data));
+    thread_finish(running_thread->entry_func(running_thread->data));
 }

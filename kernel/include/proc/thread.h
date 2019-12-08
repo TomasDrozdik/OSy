@@ -6,6 +6,7 @@
 
 #include <errno.h>
 #include <types.h>
+#include <adt/list.h>
 #include <proc/context.h>
 
 /** Thread stack size.
@@ -42,6 +43,7 @@ struct thread {
     void * data;
     void* retval;
     thread_state_t state;
+    link_t link;
 
     // Pointer to where context (i.e. stack top in terms of cpu_context_switch)
     // is stored.
