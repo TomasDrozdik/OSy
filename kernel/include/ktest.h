@@ -30,6 +30,10 @@
         machine_halt(); \
     } while (0)
 
+/** Print message for tester to signal that this test shall end in panic. */
+#define ktest_expect_panic() \
+    puts("\n\n[ ENDS WITH PANIC ]\n\n")
+
 /** Kernel test assertion.
  *
  * Unlike normal assertion, this one is always checked and machine is

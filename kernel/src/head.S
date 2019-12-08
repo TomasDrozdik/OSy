@@ -7,6 +7,8 @@
  * This code will be loaded at (physical) address 0.
  */
 
+#include <drivers/cp0.h>
+
 /*
  * MSIM-specific macro for halting the simulator.
  */
@@ -54,9 +56,9 @@
  */
 .macro use_normal_exception_vector
     la $k1, ~(1 << 22)
-    mfc0 $k0, $12
+    mfc0 $k0, $REG_CP0_STATUS
     and $k0, $k0, $k1
-    mtc0 $k0, $12
+    mtc0 $k0, $REG_CP0_STATUS
     nop
 .endm use_normal_exception_vector
 
@@ -77,6 +79,8 @@
  */
 
 .section .excvec, "ax"
+
+.globl handle_exception_general_asm
 
 /*
  * Debugging-only exception handling: enter interactive mode.
@@ -99,7 +103,8 @@ exception_cache_error:
 .globl exception_general
 .ent   exception_general
 exception_general:
-    announce_exception
+    j handle_exception_general_asm
+    nop
 .end exception_general
 
 /*

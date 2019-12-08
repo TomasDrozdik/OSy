@@ -15,3 +15,7 @@ assignment-02:
 assignment-03:
   script:
     - ./tools/tester.py suite --verbose suite_as3.txt
+
+assignment-04:
+  script:
+    - ./tools/tester.py suite --verbose suite_as4.txt
