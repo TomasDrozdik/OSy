@@ -20,8 +20,14 @@ typedef struct {
     int value;
 } sem_t;
 
-sem_list_item sem_list_find(sem_t* sem);
-void wake_up_next(sem_list_item item);
+typedef struct list_item {
+    link_t link;
+    sem_t* semaphore;
+    list_t queue;
+} sem_list_item;
+
+sem_list_item* sem_list_find(sem_t* sem);
+void sem_wake_up_next(sem_list_item* item);
 errno_t sem_init(sem_t* sem, int value);
 void sem_destroy(sem_t* sem);
 int sem_get_value(sem_t* sem);

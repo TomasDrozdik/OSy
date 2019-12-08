@@ -1,6 +1,7 @@
 /_build_*/
 /cmd.txt
 /config.mk
+/msim.conf
 **/*.o
 **/*.dep
 **/*.raw

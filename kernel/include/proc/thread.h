@@ -33,6 +33,7 @@ typedef enum thread_state {
     READY,
     SUSPENDED,
     FINISHED,
+	WAITING,
 } thread_state_t;
 
 /** Information about any existing thread. */
