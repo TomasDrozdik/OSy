@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2019 Charles University
 
+#include <adt/list.h>
+#include <debug/code.h>
 #include <lib/print.h>
+#include <mm/heap.h>
 #include <proc/context.h>
 #include <proc/scheduler.h>
 #include <proc/thread.h>
-#include <adt/list.h>
-#include <mm/heap.h>
-#include <debug/code.h>
 
 /** Calculates address of initial stack top of given thread.
  *
@@ -130,9 +130,9 @@ void thread_finish(void* retval) {
     scheduler_schedule_next();
 
     // Noreturn function
-    while (1);
+    while (1)
+        ;
 }
-
 
 /** Tells if thread already called thread_finish() or returned from the entry
  * function.

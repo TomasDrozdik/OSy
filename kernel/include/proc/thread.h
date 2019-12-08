@@ -4,10 +4,10 @@
 #ifndef _PROC_THREAD_H
 #define _PROC_THREAD_H
 
-#include <errno.h>
-#include <types.h>
 #include <adt/list.h>
+#include <errno.h>
 #include <proc/context.h>
+#include <types.h>
 
 /** Thread stack size.
  *
@@ -40,7 +40,7 @@ typedef struct thread thread_t;
 struct thread {
     char name[THREAD_NAME_MAX_LENGTH + 1];
     thread_entry_func_t entry_func;
-    void * data;
+    void* data;
     void* retval;
     thread_state_t state;
     link_t link;

@@ -238,7 +238,7 @@ char* strncpy(char* dest, const char* src, size_t n) {
     for (i = 0; i < n && src[i] != '\0'; ++i) {
         dest[i] = src[i];
     }
-    for ( ; i < n; ++i) {
+    for (; i < n; ++i) {
         dest[i] = '\0';
     }
     return dest;
@@ -336,15 +336,14 @@ static void print_thread(thread_t* thread) {
            "\tcontext %p"
            "\tsp: %p"
            "\tra: %p",
-           thread,
-           thread->name,
-           (thread->state == READY) ? "READY" :
-                   (thread->state == SUSPENDED) ? "SUSPENDED" : "FINISHED",
-           thread->entry_func,
-           thread->data,
-           thread->context,
-           thread->context->sp,
-           thread->context->ra);
+            thread,
+            thread->name,
+            (thread->state == READY) ? "READY" : (thread->state == SUSPENDED) ? "SUSPENDED" : "FINISHED",
+            thread->entry_func,
+            thread->data,
+            thread->context,
+            thread->context->sp,
+            thread->context->ra);
 }
 
 static void uint32_to_str_impl(uint32_t n, char* buf, int order,

@@ -3,8 +3,8 @@
 
 #include <adt/list.h>
 #include <debug/mm.h>
-#include <mm/heap.h>
 #include <lib/print.h>
+#include <mm/heap.h>
 
 #include <lib/print.h>
 
@@ -44,10 +44,7 @@
  * @param HEADERPTR Pointer to the header of a block to check.
  * @returns Size of a block in size_t type.
  */
-#define BLOCK_SIZE(HEADERPTR) ((size_t) \
-    (valid_link(blocks, HEADERPTR->link.next) ? \
-        (uintptr_t)HEADERPTR->link.next - (uintptr_t)&HEADERPTR->link : \
-        end_ptr - (uintptr_t)HEADERPTR))
+#define BLOCK_SIZE(HEADERPTR) ((size_t)(valid_link(blocks, HEADERPTR->link.next) ? (uintptr_t)HEADERPTR->link.next - (uintptr_t)&HEADERPTR->link : end_ptr - (uintptr_t)HEADERPTR))
 
 /** Checks if given header is free.
  * By checking validity of free_link. This means that each free block HAS to
@@ -135,8 +132,6 @@ void kfree(void* ptr) {
     compact(&header->link, header->link.next);
 }
 
-
-
 static inline uintptr_t align(uintptr_t ptr, size_t size) {
     // TODO: consider using trick with next power of 2
     size_t remainder;
@@ -148,12 +143,9 @@ static inline uintptr_t align(uintptr_t ptr, size_t size) {
 }
 
 static inline void compact(link_t* prev, link_t* next) {
-    block_header_t* prev_header = valid_link(blocks, prev) ?
-            HEADER_FROM_LINK(prev) : NULL;
-    block_header_t* next_header = valid_link(blocks, next) ?
-            HEADER_FROM_LINK(next) : NULL;
-    if (prev_header && next_header &&
-            IS_FREE(prev_header) && IS_FREE(next_header)) {
+    block_header_t* prev_header = valid_link(blocks, prev) ? HEADER_FROM_LINK(prev) : NULL;
+    block_header_t* next_header = valid_link(blocks, next) ? HEADER_FROM_LINK(next) : NULL;
+    if (prev_header && next_header && IS_FREE(prev_header) && IS_FREE(next_header)) {
         list_remove(&next_header->link);
         list_remove(&next_header->free_link);
     }
