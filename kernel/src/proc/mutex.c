@@ -53,10 +53,8 @@ errno_t mutex_init(mutex_t* mutex) {
 
 void mutex_wake_up_next(mutex_list_item* item) {
     thread_t* next_thread = list_item(list_pop(&item->queue), thread_t, link);
-    if (next_thread != NULL) {
-		next_thread->state = READY;
-		scheduler_add_ready_thread(next_thread);
-	}
+	next_thread->state = READY;
+	scheduler_add_ready_thread(next_thread);
 }
 
 mutex_list_item* mutex_list_find(mutex_t* mutex) {
@@ -94,8 +92,9 @@ void mutex_lock(mutex_t* mutex) {
     mutex_list_item* item = mutex_list_find(mutex);
     if (mutex_trylock(mutex) == EBUSY) {
         thread_t* current = thread_get_current();
-        list_remove(&current->link);
+        scheduler_suspend_thread(current);
         current->state = WAITING;
+        list_remove(&current->link);
         list_append(&item->queue, &current->link);
         thread_yield();
     }
@@ -117,7 +116,10 @@ void mutex_unlock(mutex_t* mutex) {
     mutex_list_item* item = mutex_list_find(mutex);
     panic_if(item->owner != thread_get_current(), "Different thread trying to unlock mutex.");
     mutex->locked = false;
-    mutex_wake_up_next(item);
+    if(list_get_size(&item->queue)!=0){
+		mutex_wake_up_next(item);
+        thread_yield();
+	}
 }
 
 /** Try to lock the mutex without waiting.
@@ -133,7 +135,6 @@ errno_t mutex_trylock(mutex_t* mutex) {
     if (mutex->locked) {
         return EBUSY;
     } else {
-        mutex->locked = true;
         return EOK;
     }
 }
