@@ -82,17 +82,19 @@ int sem_get_value(sem_t* sem) {
  * @param sem Semaphore to be locked.
  */
 void sem_wait(sem_t* sem) {
+
     if (sem_trywait(sem)==EBUSY) {
         sem_list_item* item = sem_list_find(sem);
         thread_t* current = thread_get_current();
         scheduler_suspend_thread(current);
-        list_remove(&current->link);
         current->state = WAITING;
+        list_remove(&current->link);
         list_append(&item->queue, &current->link);
         thread_yield();
 
-        sem->value--;
+		sem->value--;
 	}
+    
 }
 
 /** Unlocks (ups/signals) the sempahore.
@@ -108,6 +110,7 @@ void sem_post(sem_t* sem) {
         sem_wake_up_next(item);
     }
     sem->value++;
+    thread_yield();
 }
 
 /** Try to lock the semaphore without waiting.
@@ -120,7 +123,7 @@ void sem_post(sem_t* sem) {
  * @retval EBUSY Semaphore has value of 0 and locking would block.
  */
 errno_t sem_trywait(sem_t* sem) {
-    if (sem->value == 0) {
+    if (sem->value <= 0) {
         return EBUSY;
 	} else {
         sem->value--;

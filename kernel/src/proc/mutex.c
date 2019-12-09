@@ -53,8 +53,10 @@ errno_t mutex_init(mutex_t* mutex) {
 
 void mutex_wake_up_next(mutex_list_item* item) {
     thread_t* next_thread = list_item(list_pop(&item->queue), thread_t, link);
-    next_thread->state = READY;
-    scheduler_add_ready_thread(next_thread);
+    if (next_thread != NULL) {
+		next_thread->state = READY;
+		scheduler_add_ready_thread(next_thread);
+	}
 }
 
 mutex_list_item* mutex_list_find(mutex_t* mutex) {
