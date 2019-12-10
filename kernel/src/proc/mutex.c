@@ -3,6 +3,7 @@
 
 #include <proc/mutex.h>
 #include <mm/heap.h>
+#include <exc.h>
 
 typedef struct list_item {
     link_t link;
@@ -37,6 +38,8 @@ mutex_list_item* mutex_list_find(mutex_t* mutex);
  * @retval EOK Mutex was successfully initialized.
  */
 errno_t mutex_init(mutex_t* mutex) {
+    bool enable = interrupts_disable();
+
     if (mutex_first) {
         list_init(&mutex_list);
         mutex_first = false;
@@ -47,14 +50,20 @@ errno_t mutex_init(mutex_t* mutex) {
     link_init(&new_item->link);
     list_init(&new_item->queue);
     list_append(&mutex_list, &new_item->link);
+
+	interrupts_restore(enable);
 	
     return EOK;
 }
 
 void mutex_wake_up_next(mutex_list_item* item) {
+    bool enable = interrupts_disable();
+
     thread_t* next_thread = list_item(list_pop(&item->queue), thread_t, link);
 	next_thread->state = READY;
 	scheduler_add_ready_thread(next_thread);
+
+	interrupts_restore(enable);
 }
 
 mutex_list_item* mutex_list_find(mutex_t* mutex) {
@@ -74,10 +83,14 @@ mutex_list_item* mutex_list_find(mutex_t* mutex) {
  * @param mutex Mutex to destroy.
  */
 void mutex_destroy(mutex_t* mutex) {
+    bool enable = interrupts_disable();
+
     mutex_list_item* item = mutex_list_find(mutex);
     panic_if(mutex->locked==true, "Mutex still locked when a thread tried to destroy it!");
     list_remove(&item->link);
     kfree(item);
+
+	interrupts_restore(enable);
 
     mutex = NULL;
 }
@@ -89,17 +102,28 @@ void mutex_destroy(mutex_t* mutex) {
  * @param mutex Mutex to be locked.
  */
 void mutex_lock(mutex_t* mutex) {
+    bool enable = interrupts_disable();
+
     mutex_list_item* item = mutex_list_find(mutex);
-    if (mutex_trylock(mutex) == EBUSY) {
+	
+    while (mutex_trylock(mutex) == EBUSY) {
         thread_t* current = thread_get_current();
         scheduler_suspend_thread(current);
         current->state = WAITING;
         list_remove(&current->link);
         list_append(&item->queue, &current->link);
+        //printk("Waiting!\n");
+		interrupts_restore(enable);
+
         thread_yield();
+
+		enable = interrupts_disable();
     }
     mutex->locked = true;
     item->owner = thread_get_current();
+    //printk("successfully locked.\n");
+
+	interrupts_restore(enable);
 }
 
 /** Unlocks the mutex.
@@ -113,13 +137,22 @@ void mutex_lock(mutex_t* mutex) {
  * @param mutex Mutex to be unlocked.
  */
 void mutex_unlock(mutex_t* mutex) {
+    bool enable = interrupts_disable();
+
     mutex_list_item* item = mutex_list_find(mutex);
     panic_if(item->owner != thread_get_current(), "Different thread trying to unlock mutex.");
-    mutex->locked = false;
+    
+	mutex->locked = false;
+    //printk("Unlocked.\n");
+	
     if(list_get_size(&item->queue)!=0){
 		mutex_wake_up_next(item);
+        //printk("Woke up next\n");
+		interrupts_restore(enable);
         thread_yield();
 	}
+
+	interrupts_restore(enable);
 }
 
 /** Try to lock the mutex without waiting.
@@ -132,9 +165,12 @@ void mutex_unlock(mutex_t* mutex) {
  * @retval EBUSY Mutex is currently locked by a different thread.
  */
 errno_t mutex_trylock(mutex_t* mutex) {
+    bool enable = interrupts_disable();
     if (mutex->locked) {
+        interrupts_restore(enable);
         return EBUSY;
     } else {
+        interrupts_restore(enable);
         return EOK;
     }
 }

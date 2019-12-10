@@ -4,8 +4,12 @@
 #include <drivers/timer.h>
 #include <exc.h>
 #include <lib/print.h>
+#include <drivers/machine.h>
+#include <proc/scheduler.h>
 
 void handle_exception_general(context_t* context) {
+    timer_interrupt_after(CYCLES);
+    scheduler_schedule_next();
 }
 
 bool interrupts_disable(void) {

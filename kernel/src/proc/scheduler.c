@@ -5,8 +5,9 @@
 #include <debug.h>
 #include <mm/heap.h>
 #include <proc/scheduler.h>
-
+#include <drivers/timer.h>
 #include <lib/print.h>
+#include <exc.h>
 
 /** List of ready threads. */
 static list_t ready_thread_queue;
@@ -51,10 +52,14 @@ static inline void pick_next_scheduled_thread(void);
  * Called once at system boot.
  */
 void scheduler_init(void) {
+    bool enable = interrupts_disable();
+
     list_init(&ready_thread_queue);
     list_init(&suspended_thread_queue);
     scheduled_thread = NULL;
     changed_scheduled_thread = false;
+
+	interrupts_restore(enable);
 }
 
 /** Marks given thread as ready to be executed.
@@ -98,6 +103,8 @@ void scheduler_remove_thread(thread_t* thread) {
  * @param thread Thread to remove from the queue.
  */
 void scheduler_suspend_thread(thread_t* thread) {
+    bool enable = interrupts_disable();
+
     panic_if(scheduled_thread->state != READY,
             "Suspending thread which is not READY.");
     thread->state = SUSPENDED;
@@ -108,6 +115,8 @@ void scheduler_suspend_thread(thread_t* thread) {
     }
     list_remove(&thread->link);
     list_append(&suspended_thread_queue, &thread->link);
+
+	interrupts_restore(enable);
 }
 
 /** Wakes-up existing thread.
@@ -146,6 +155,8 @@ errno_t scheduler_wakeup_thread(thread_t* thread) {
  * the current one.
 */
 void scheduler_schedule_next(void) {
+    bool enable = interrupts_disable();
+
     if (scheduled_thread == NULL) { // Very first run of this function
         scheduled_thread = list_item(ready_thread_queue.head.next, thread_t, link);
     } else if (!changed_scheduled_thread) {
@@ -156,6 +167,8 @@ void scheduler_schedule_next(void) {
 
     assert(scheduled_thread->state == READY);
     thread_switch_to(scheduled_thread);
+
+	interrupts_restore(enable);
 }
 
 /** Returns the thread the scheduler has currently scheduled.
@@ -172,6 +185,9 @@ static inline void schedule(thread_t* thread) {
         list_add(scheduled_thread->link.prev, &thread->link);
     } else { // Init thread
         list_append(&ready_thread_queue, &thread->link);
+
+		//Set interrupt to 1500 cycles(subject to change)
+        timer_interrupt_after(CYCLES);
     }
 }
 
@@ -189,4 +205,5 @@ static inline void pick_next_scheduled_thread() {
 
     scheduled_thread = list_container_of(next_link, thread_t, link);
     assert(scheduled_thread->state == READY);
+
 }

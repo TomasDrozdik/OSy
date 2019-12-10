@@ -3,6 +3,7 @@
 
 #include <proc/sem.h>
 #include <mm/heap.h>
+#include <exc.h>
 
 bool sem_first = true;
 
@@ -22,9 +23,13 @@ sem_list_item* sem_list_find(sem_t* sem) {
 
 //Wake up the next thread in semaphore queue
 void sem_wake_up_next(sem_list_item* item) {
+    bool enable = interrupts_disable();
+
     thread_t* next_thread = list_item(list_pop(&item->queue), thread_t, link);
     next_thread->state = READY;
     scheduler_add_ready_thread(next_thread);
+
+	interrupts_restore(enable);
 }
 
 /** Initializes given semaphore.
@@ -35,6 +40,8 @@ void sem_wake_up_next(sem_list_item* item) {
  * @retval EOK Semaphore was successfully initialized.
  */
 errno_t sem_init(sem_t* sem, int value) {
+    bool enable = interrupts_disable();
+
     if (sem_first) {
         list_init(&sem_list);
         sem_first = false;
@@ -46,6 +53,8 @@ errno_t sem_init(sem_t* sem, int value) {
     list_init(&new_item->queue);
     list_append(&sem_list, &new_item->link);
 	
+	interrupts_restore(enable);
+
     return EOK;
 }
 
@@ -56,6 +65,8 @@ errno_t sem_init(sem_t* sem, int value) {
  * @param sem Semaphore to destroy.
  */
 void sem_destroy(sem_t* sem) {
+
+	bool enable = interrupts_disable();
     
     sem_list_item* item = sem_list_find(sem);
     panic_if(list_get_size(&item->queue)!=0, "Threads still waiting for semaphore");
@@ -63,6 +74,8 @@ void sem_destroy(sem_t* sem) {
     kfree(item);
 
     sem = NULL;
+
+	interrupts_restore(enable);
 }
 
 /** Get current value of the semaphore.
@@ -82,18 +95,25 @@ int sem_get_value(sem_t* sem) {
  * @param sem Semaphore to be locked.
  */
 void sem_wait(sem_t* sem) {
+    bool enable = interrupts_disable();
 
-    if (sem_trywait(sem)==EBUSY) {
+    while (sem_trywait(sem)==EBUSY) {
+        
         sem_list_item* item = sem_list_find(sem);
         thread_t* current = thread_get_current();
         scheduler_suspend_thread(current);
         current->state = WAITING;
         list_remove(&current->link);
         list_append(&item->queue, &current->link);
+		interrupts_restore(enable);
         thread_yield();
 
-		sem->value--;
+		enable = interrupts_disable();
+        
 	}
+
+	sem->value--;
+    interrupts_restore(enable);
     
 }
 
@@ -105,11 +125,16 @@ void sem_wait(sem_t* sem) {
  * @param sem Semaphore to be unlocked.
  */
 void sem_post(sem_t* sem) {
+    bool enable = interrupts_disable();
+
     sem_list_item* item = sem_list_find(sem);
     if (list_get_size(&item->queue)!=0) {
+		
         sem_wake_up_next(item);
     }
     sem->value++;
+    interrupts_restore(enable);
+
     thread_yield();
 }
 
@@ -126,7 +151,6 @@ errno_t sem_trywait(sem_t* sem) {
     if (sem->value <= 0) {
         return EBUSY;
 	} else {
-        sem->value--;
         return EOK;
 	}
 }

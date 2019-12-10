@@ -8,6 +8,7 @@
 #include <proc/context.h>
 #include <proc/scheduler.h>
 #include <proc/thread.h>
+#include <exc.h>
 
 /** Calculates address of initial stack top of given thread.
  *
@@ -67,7 +68,9 @@ void threads_init(void) {
  * @retval INVAL Invalid flags (unused).
  */
 errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* data, unsigned int flags, const char* name) {
-    // Allocate enought memory for stack and thread_t structure.
+    bool enable = interrupts_disable();
+	
+	// Allocate enought memory for stack and thread_t structure.
     // No heap is available.
     thread_t* thread = (thread_t*)kmalloc(sizeof(thread_t) + THREAD_STACK_SIZE);
     if (thread == NULL) {
@@ -88,6 +91,8 @@ errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* da
 
     *thread_out = thread;
     scheduler_add_ready_thread(*thread_out);
+
+	interrupts_restore(enable);
     return EOK;
 }
 
@@ -121,12 +126,17 @@ void thread_suspend(void) {
  * @param retval Data to return in thread_join.
  */
 void thread_finish(void* retval) {
+    bool enable = interrupts_disable();
+
     running_thread->state = FINISHED;
 
     running_thread->retval = retval;
 
     assert(running_thread == scheduler_get_scheduled_thread());
     scheduler_remove_thread(running_thread);
+
+    interrupts_restore(enable);
+
     scheduler_schedule_next();
 
     // Noreturn function
@@ -196,6 +206,8 @@ errno_t thread_join(thread_t* thread, void** retval) {
  * @param thread Thread to switch to.
  */
 void thread_switch_to(thread_t* thread) {
+    bool enable = interrupts_disable();
+
     void** stack_top_old;
     if (running_thread == NULL) {
         stack_top_old = (void**)debug_get_stack_pointer();
@@ -208,6 +220,8 @@ void thread_switch_to(thread_t* thread) {
     running_thread = scheduler_get_scheduled_thread();
 
     cpu_switch_context(stack_top_old, stack_top_new, 1);
+
+	interrupts_restore(enable);
 }
 
 static void thread_entry_func_wrapper() {
