@@ -143,8 +143,8 @@ static void spawn_workers(size_t producers, size_t consumers) {
     }
     while (consumers > 0) {
         ktest_assert(consumer_thread_count < TOTAL_THREAD_COUNT, "too many consumers created");
-        errno_t err = thread_create(&consumer_threads[consumer_thread_count], worker_consumer, NULL, 0, "producer");
-        ktest_assert_errno(err, "thread_create(producer)");
+        errno_t err = thread_create(&consumer_threads[consumer_thread_count], worker_consumer, NULL, 0, "consumer");
+        ktest_assert_errno(err, "thread_create(consumer)");
         consumers--;
         consumer_thread_count++;
     }
