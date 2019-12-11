@@ -34,7 +34,7 @@ class UnreachableCode(TesterException):
                                  'reached unreachable code :-(')
 
 class InThreadPopener(threading.Thread):
-    def __init__(self, command, work_dir, log_filename, logger, stdin=None):
+    def __init__(self, command, work_dir, log_filename, logger, stdin=subprocess.DEVNULL):
         threading.Thread.__init__(self)
         self.command = command
         self.work_dir = work_dir
@@ -93,7 +93,7 @@ class InThreadPopener(threading.Thread):
                 self.logger.debug(exc)
                 # Probably (fingers crossed) a race between poll() and kill()
 
-def run_command_with_logging(command, work_dir, log_filename, logger, stdin=None, timeout=600):
+def run_command_with_logging(command, work_dir, log_filename, logger, stdin=subprocess.DEVNULL, timeout=600):
     proc = InThreadPopener(command, work_dir, log_filename, logger, stdin)
     proc.start()
     proc.forceful_wait(timeout)
