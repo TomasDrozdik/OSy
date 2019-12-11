@@ -8,8 +8,15 @@
 #include <proc/scheduler.h>
 
 void handle_exception_general(context_t* context) {
-    timer_interrupt_after(CYCLES);
-    scheduler_schedule_next();
+    unative_t exc = cp0_cause_get_exc_code(context->cause);
+    bool pending = cp0_cause_is_interrupt_pending(context->cause, 7);
+
+	if (exc==0&&pending==1){
+		timer_interrupt_after(CYCLES);
+		scheduler_schedule_next();
+	} else {
+            panic("Exception...%d, status: %x, epc: %x\n", exc, context->status, context->epc);    
+	}
 }
 
 bool interrupts_disable(void) {

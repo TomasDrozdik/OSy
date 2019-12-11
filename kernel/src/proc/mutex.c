@@ -46,6 +46,10 @@ errno_t mutex_init(mutex_t* mutex) {
 	}
     mutex->locked = false;
     mutex_list_item* new_item = (mutex_list_item*)kmalloc(sizeof(mutex_list_item));
+    if (new_item == NULL) {
+        interrupts_restore(enable);
+        return ENOMEM;
+	}
     new_item->mutex = mutex;
     link_init(&new_item->link);
     list_init(&new_item->queue);
@@ -90,9 +94,9 @@ void mutex_destroy(mutex_t* mutex) {
     list_remove(&item->link);
     kfree(item);
 
-	interrupts_restore(enable);
-
     mutex = NULL;
+
+    interrupts_restore(enable);
 }
 
 /** Locks the mutex.
@@ -112,16 +116,9 @@ void mutex_lock(mutex_t* mutex) {
         current->state = WAITING;
         list_remove(&current->link);
         list_append(&item->queue, &current->link);
-        //printk("Waiting!\n");
-		interrupts_restore(enable);
 
         thread_yield();
-
-		enable = interrupts_disable();
     }
-    mutex->locked = true;
-    item->owner = thread_get_current();
-    //printk("successfully locked.\n");
 
 	interrupts_restore(enable);
 }
@@ -147,8 +144,6 @@ void mutex_unlock(mutex_t* mutex) {
 	
     if(list_get_size(&item->queue)!=0){
 		mutex_wake_up_next(item);
-        //printk("Woke up next\n");
-		interrupts_restore(enable);
         thread_yield();
 	}
 
@@ -166,10 +161,14 @@ void mutex_unlock(mutex_t* mutex) {
  */
 errno_t mutex_trylock(mutex_t* mutex) {
     bool enable = interrupts_disable();
+    mutex_list_item* item = mutex_list_find(mutex);
+
     if (mutex->locked) {
         interrupts_restore(enable);
         return EBUSY;
     } else {
+        mutex->locked = true;
+        item->owner = thread_get_current();
         interrupts_restore(enable);
         return EOK;
     }

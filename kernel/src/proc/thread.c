@@ -74,6 +74,7 @@ errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* da
     // No heap is available.
     thread_t* thread = (thread_t*)kmalloc(sizeof(thread_t) + THREAD_STACK_SIZE);
     if (thread == NULL) {
+        interrupts_restore(enable);
         return ENOMEM;
     }
 
@@ -111,8 +112,12 @@ void thread_yield(void) {
 
 /** Current thread stops execution and is not scheduled until woken up. */
 void thread_suspend(void) {
+    bool enable = interrupts_disable();
+
     scheduler_suspend_thread(running_thread);
     scheduler_schedule_next();
+
+	interrupts_restore(enable);
 }
 
 /** Terminate currently running thread.
@@ -126,7 +131,7 @@ void thread_suspend(void) {
  * @param retval Data to return in thread_join.
  */
 void thread_finish(void* retval) {
-    bool enable = interrupts_disable();
+    interrupts_disable();
 
     running_thread->state = FINISHED;
 
@@ -135,13 +140,12 @@ void thread_finish(void* retval) {
     assert(running_thread == scheduler_get_scheduled_thread());
     scheduler_remove_thread(running_thread);
 
-    interrupts_restore(enable);
-
     scheduler_schedule_next();
 
     // Noreturn function
-    while (1)
-        ;
+    while (1) {
+        printk("error");
+	}
 }
 
 /** Tells if thread already called thread_finish() or returned from the entry
@@ -184,7 +188,10 @@ errno_t thread_wakeup(thread_t* thread) {
  * @retval EINVAL Invalid thread.
  */
 errno_t thread_join(thread_t* thread, void** retval) {
+    bool enable = interrupts_disable();
+
     if (thread == NULL) {
+        interrupts_restore(enable);
         return EINVAL;
     }
 
@@ -195,6 +202,9 @@ errno_t thread_join(thread_t* thread, void** retval) {
     if (retval) {
         *retval = thread->retval;
     }
+
+    interrupts_restore(enable);
+
     return EOK;
 }
 

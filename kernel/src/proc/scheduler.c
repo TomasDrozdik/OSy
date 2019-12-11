@@ -84,6 +84,8 @@ void scheduler_add_ready_thread(thread_t* thread) {
  * @param thread Thread to remove from the queue.
  */
 void scheduler_remove_thread(thread_t* thread) {
+    bool enable = interrupts_disable();
+
     assert(thread->state == FINISHED);
     if (thread == scheduled_thread) {
         pick_next_scheduled_thread();
@@ -91,6 +93,8 @@ void scheduler_remove_thread(thread_t* thread) {
         changed_scheduled_thread = true;
     }
     list_remove(&thread->link);
+
+	interrupts_restore(enable);
 }
 
 /** Suspends given thread in scheduling.
@@ -134,9 +138,13 @@ void scheduler_suspend_thread(thread_t* thread) {
  * TODO: @retval EINVAL Invalid thread.
  */
 errno_t scheduler_wakeup_thread(thread_t* thread) {
+    bool enable = interrupts_disable();
+
     if (thread->state == FINISHED) {
+        interrupts_restore(enable);
         return EEXITED;
     } else if (thread->state == READY) {
+        interrupts_restore(enable);
         return EOK;
     }
 
@@ -145,6 +153,8 @@ errno_t scheduler_wakeup_thread(thread_t* thread) {
     list_remove(&thread->link);
     thread->state = READY;
     schedule(thread);
+
+    interrupts_restore(enable);
     return EOK;
 }
 
@@ -180,6 +190,8 @@ thread_t* scheduler_get_scheduled_thread(void) {
 }
 
 static inline void schedule(thread_t* thread) {
+    bool enable = interrupts_disable();
+
     assert(thread->state == READY);
     if (scheduled_thread != NULL) {
         list_add(scheduled_thread->link.prev, &thread->link);
@@ -189,9 +201,13 @@ static inline void schedule(thread_t* thread) {
 		//Set interrupt to 1500 cycles(subject to change)
         timer_interrupt_after(CYCLES);
     }
+
+	interrupts_restore(enable);
 }
 
 static inline void pick_next_scheduled_thread() {
+    bool enable = interrupts_disable();
+
     panic_if(list_is_empty(&ready_thread_queue),
             "No active threads in scheduler.");
 
@@ -206,4 +222,5 @@ static inline void pick_next_scheduled_thread() {
     scheduled_thread = list_container_of(next_link, thread_t, link);
     assert(scheduled_thread->state == READY);
 
+	interrupts_restore(enable);
 }

@@ -48,6 +48,10 @@ errno_t sem_init(sem_t* sem, int value) {
 	}
     sem->value = value;
     sem_list_item* new_item = (sem_list_item*)kmalloc(sizeof(sem_list_item));
+    if (new_item == NULL) {
+        interrupts_restore(enable);
+        return ENOMEM;
+    }
     new_item->semaphore = sem;
     link_init(&new_item->link);
     list_init(&new_item->queue);
@@ -105,16 +109,11 @@ void sem_wait(sem_t* sem) {
         current->state = WAITING;
         list_remove(&current->link);
         list_append(&item->queue, &current->link);
-		interrupts_restore(enable);
-        thread_yield();
-
-		enable = interrupts_disable();
-        
+		
+        thread_yield();       
 	}
 
-	sem->value--;
-    interrupts_restore(enable);
-    
+    interrupts_restore(enable);  
 }
 
 /** Unlocks (ups/signals) the sempahore.
@@ -132,10 +131,12 @@ void sem_post(sem_t* sem) {
 		
         sem_wake_up_next(item);
     }
+
     sem->value++;
-    interrupts_restore(enable);
 
     thread_yield();
+
+	interrupts_restore(enable);
 }
 
 /** Try to lock the semaphore without waiting.
@@ -148,9 +149,16 @@ void sem_post(sem_t* sem) {
  * @retval EBUSY Semaphore has value of 0 and locking would block.
  */
 errno_t sem_trywait(sem_t* sem) {
+    bool enable = interrupts_disable();
+
     if (sem->value <= 0) {
+
+        interrupts_restore(enable);
         return EBUSY;
 	} else {
+
+        sem->value--;
+        interrupts_restore(enable);
         return EOK;
 	}
 }

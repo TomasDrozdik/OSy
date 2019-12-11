@@ -8,7 +8,7 @@
 #include <types.h>
 
 //Number of cycles of one process
-#define CYCLES 2000
+#define CYCLES 100000
 
 static inline void timer_interrupt_after(unative_t cycles) {
     cp0_write_compare(cp0_read_count() + cycles);

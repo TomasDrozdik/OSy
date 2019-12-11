@@ -108,6 +108,8 @@ void* kmalloc(size_t size) {
     list_foreach(free_blocks, block_header_t, free_link, header) {
         if (BLOCK_SIZE(header) == actual_size) {
             list_remove(&header->free_link);
+            interrupts_restore(enable);
+
             return PAYLOAD_FROM_HEADER(header);
         } else if (BLOCK_SIZE(header) >= actual_size + sizeof(block_header_t)
                         + MIN_ALLOCATION_SIZE) {
@@ -122,6 +124,7 @@ void* kmalloc(size_t size) {
             list_remove(&header->free_link);
             link_init(&header->free_link);
 
+			interrupts_restore(enable);
             return PAYLOAD_FROM_HEADER(header);
         }
     }
