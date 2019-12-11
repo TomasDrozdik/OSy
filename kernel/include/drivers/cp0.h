@@ -43,11 +43,11 @@
 #ifndef __ASSEMBLER__
 #include <types.h>
 
-static inline unsigned int cp0_status_get_exc_code(unative_t status) {
+static inline unsigned int cp0_cause_get_exc_code(unative_t status) {
     return (status >> 2) & 0x1F;
 }
 
-static inline bool cp0_status_is_interrupt_pending(unative_t status, unsigned int intr) {
+static inline bool cp0_cause_is_interrupt_pending(unative_t status, unsigned int intr) {
     return (status >> 8) & (1 << intr);
 }
 
