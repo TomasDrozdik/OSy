@@ -1,7 +1,7 @@
 kernel adt/list1
 kernel adt/list2
 kernel basic/dump_function
-kernel basic/probe_memory:m32
+kernel basic/probe_memory:m64
 kernel basic/probe_memory:m128
 kernel basic/probe_memory:m256
 kernel basic/probe_memory:m1024
