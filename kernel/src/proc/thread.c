@@ -19,6 +19,8 @@ void threads_init(void) {
  * This function allocates space for both stack and the thread_t structure
  * (hence the double <code>**</code> in <code>thread_out</code>.
  *
+ * This thread will use the same address space as the current one.
+ *
  * @param thread_out Where to place the initialized thread_t structure.
  * @param entry Thread entry function.
  * @param data Data for the entry function.
@@ -30,6 +32,28 @@ void threads_init(void) {
  * @retval INVAL Invalid flags (unused).
  */
 errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* data, unsigned int flags, const char* name) {
+    return ENOIMPL;
+}
+
+/** Create a new thread with new address space.
+ *
+ * The thread is automatically placed into the queue of ready threads.
+ *
+ * This function allocates space for both stack and the thread_t structure
+ * (hence the double <code>**</code> in <code>thread_out</code>.
+ *
+ * @param thread_out Where to place the initialized thread_t structure.
+ * @param entry Thread entry function.
+ * @param data Data for the entry function.
+ * @param flags Flags (unused).
+ * @param name Thread name (for debugging purposes).
+ * @param as_size Address space size, aligned at page size (0 is correct though not very useful).
+ * @return Error code.
+ * @retval EOK Thread was created and started (added to ready queue).
+ * @retval ENOMEM Not enough memory to complete the operation.
+ * @retval INVAL Invalid flags (unused).
+ */
+errno_t thread_create_new_as(thread_t** thread_out, thread_entry_func_t entry, void* data, unsigned int flags, const char* name, size_t as_size) {
     return ENOIMPL;
 }
 
@@ -101,6 +125,7 @@ errno_t thread_wakeup(thread_t* thread) {
  * @return Error code.
  * @retval EOK Thread was joined.
  * @retval EBUSY Some other thread is already joining this one.
+ * @retval EKILLED Thread was killed.
  * @retval EINVAL Invalid thread.
  */
 errno_t thread_join(thread_t* thread, void** retval) {
@@ -115,4 +140,26 @@ errno_t thread_join(thread_t* thread, void** retval) {
  * @param thread Thread to switch to.
  */
 void thread_switch_to(thread_t* thread) {
+}
+
+/** Get address space of given thread. */
+as_t* thread_get_as(thread_t* thread) {
+    return NULL;
+}
+
+/** Kills given thread.
+ *
+ * Note that this function shall work for any existing thread, including
+ * currently running one.
+ *
+ * Joining a killed thread results in EKILLED return value from thread_join.
+ *
+ * @param thread Thread to kill.
+ * @return Error code.
+ * @retval EOK Thread was killed.
+ * @retval EINVAL Invalid thread.
+ * @retval EEXITED Thread already finished its execution.
+ */
+errno_t thread_kill(thread_t* thread) {
+    return ENOIMPL;
 }

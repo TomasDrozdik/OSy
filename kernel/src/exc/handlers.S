@@ -77,3 +77,56 @@ handle_exception_general_asm:
 
     eret
 .end handle_exception_general_asm
+
+.globl handle_tlb_refill_asm
+.ent handle_tlb_refill_asm
+handle_tlb_refill_asm:
+    /*
+     * We will use a static stack for handling TLB refill exception.
+     * It simplifies several things and we can do that because we can
+     * safely assume that TLB refill will not cause the same exception
+     * again.
+     *
+     * Thus we start by saving original stack pointer and then we can
+     * store the whole context relative to the new (static) stack.
+     *
+     * We then jump to C code to actually handle the exception.
+     *
+     * After return from the C code, we restore the registers from the
+     * static stack, restore original stack pointer and return.
+     */
+
+    // Store special registers to KSEG memory first.
+    la $k1, 0x800009c0
+    sw $sp, 16($k1)
+    SAVE_CP0_REGISTERS $k1 $k0
+
+    la $sp, 0x80000900
+    addiu $sp, -CONTEXT_SIZE
+
+    // Save all registers on stack.
+    SAVE_REGISTERS $sp
+    la $t1, 0x800009c0
+    COPY_CP0_REGISTERS_TO_CONTEXT $t1 $sp $t0
+
+    // Jump to C code.
+    or $a0, $0, $sp
+    nop
+    nop
+    jal handle_tlb_refill
+    addiu $sp, -ABI_STACK_FRAME
+    addiu $sp, ABI_STACK_FRAME
+
+    // Restore all registers from stack.
+    la $t1, 0x800009c0
+    COPY_CP0_REGISTERS_FROM_CONTEXT $sp $t1 $t0
+    LOAD_REGISTERS $sp
+    addiu $sp, CONTEXT_SIZE
+
+    // Restore special registers from KSEG.
+    la $k1, 0x800009c0
+    LOAD_CP0_REGISTERS $k1 $k0
+    lw $sp, 16($k1)
+
+    eret
+.end handle_tlb_refill_asm
