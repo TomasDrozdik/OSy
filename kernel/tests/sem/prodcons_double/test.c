@@ -77,7 +77,7 @@ static void* worker_producer(void* ignored) {
     int items_one_to_produce = LOOPS;
     int items_two_to_produce = LOOPS;
 
-    while ((items_one_to_produce > 0) && (items_two_to_produce > 0)) {
+    while ((items_one_to_produce > 0) || (items_two_to_produce > 0)) {
         errno_t err = wait_with_condition(&queue_one_empty, items_one_to_produce > 0, items_two_to_produce == 0);
         if (err == EOK) {
             // Here would be lock on the queue ONE
@@ -107,7 +107,7 @@ static void* worker_consumer(void* ignored) {
     int items_one_to_consume = LOOPS;
     int items_two_to_consume = LOOPS;
 
-    while ((items_one_to_consume > 0) && (items_two_to_consume > 0)) {
+    while ((items_one_to_consume > 0) || (items_two_to_consume > 0)) {
         errno_t err = wait_with_condition(&queue_two_full, items_two_to_consume > 0, items_one_to_consume == 0);
         if (err == EOK) {
             // Here would be lock on the queue
