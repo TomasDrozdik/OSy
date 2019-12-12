@@ -58,3 +58,25 @@ manually, and must include working scheduler and thread management functions to 
    for printing information about given thread.
  * The first argument is passed in the `a0` register.
  * The CPU status register in kernel mode on initialization should be `0xff01`.
+
+## Assignment Grading
+
+A fully working assignment will receive a baseline of 10 points.
+This refers to the state of the assignment at the submission deadline.
+
+The baseline will be further adjusted based on additional criteria:
+
+- Bonus for relevant features that were not part of the assignment
+  (such as more complex tests).
+
+- Penalty for bugs that were not discovered by the tests but are still important
+  (in extreme cases where the code passess the tests more or less by chance
+  the penalty can be severe).
+
+- Penalty for technically poor solution even if it works somehow.
+
+- Penalty for poor coding style (such as inconsistent or cryptic variable names,
+  lack of comments, poor code structure, and so on).
+
+Any single bonus or penalty will typically be restricted to 1-2 points,
+however, exceptions in extreme cases are possible.

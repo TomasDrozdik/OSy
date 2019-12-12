@@ -6,6 +6,7 @@
 
 import argparse
 import logging
+import json
 import multiprocessing
 import os
 import re
@@ -33,7 +34,7 @@ class UnreachableCode(TesterException):
                                  'reached unreachable code :-(')
 
 class InThreadPopener(threading.Thread):
-    def __init__(self, command, work_dir, log_filename, logger, stdin=None):
+    def __init__(self, command, work_dir, log_filename, logger, stdin=subprocess.DEVNULL):
         threading.Thread.__init__(self)
         self.command = command
         self.work_dir = work_dir
@@ -92,7 +93,7 @@ class InThreadPopener(threading.Thread):
                 self.logger.debug(exc)
                 # Probably (fingers crossed) a race between poll() and kill()
 
-def run_command_with_logging(command, work_dir, log_filename, logger, stdin=None, timeout=600):
+def run_command_with_logging(command, work_dir, log_filename, logger, stdin=subprocess.DEVNULL, timeout=600):
     proc = InThreadPopener(command, work_dir, log_filename, logger, stdin)
     proc.start()
     proc.forceful_wait(timeout)
@@ -111,23 +112,28 @@ def prepare_empty_build_dir(test_name):
     os.mkdir(dir_name)
     return dir_name
 
-
-def run_kernel_test(test_descriptor, extra_arguments):
+def parse_test_config(test_descriptor):
     parts = test_descriptor.split(':')
     name = parts[0]
+    extras = {
+        'memory_size': None,
+    }
+    for i in parts[1:]:
+        if i.startswith('m'):
+            extras['memory_size'] = int(i[1:])
 
-    if (len(parts) > 1) and parts[1].startswith('m'):
-        memory_size = int(parts[1][1:])
-    else:
-        memory_size = None
+    return ( name, extras )
+
+def run_kernel_test(test_descriptor, extra_arguments):
+    ( name, parameters ) = parse_test_config(test_descriptor)
 
     logger = logging.getLogger('K/{}'.format(name))
     build_dir = prepare_empty_build_dir('kernel/{}'.format(test_descriptor))
     logger.debug('Will use build directory %s.', build_dir)
 
     configure_args = ['--kernel-test={}'.format(name)]
-    if memory_size is not None:
-        configure_args.append('--memory-size={}'.format(memory_size))
+    if parameters['memory_size'] is not None:
+        configure_args.append('--memory-size={}'.format(parameters['memory_size']))
     for i in extra_arguments['configure']:
         configure_args.append(i)
 
@@ -166,12 +172,18 @@ def run_kernel_test(test_descriptor, extra_arguments):
     if exit_code != 0:
         raise TesterException('MSIM execution failed', 'see msim.log')
 
-    found_test_passed = False
-    for line in output:
-        if line == 'Test passed.':
-            found_test_passed = True
-            break
-    if not found_test_passed:
+    shall_panic = '[ ENDS WITH PANIC ]' in output
+    if shall_panic:
+        actually_panicked = False
+        for line in output:
+            if 'Kernel panic' in line:
+                actually_panicked = True
+                break
+        if not actually_panicked:
+            raise TesterException('test failed (not panicked)', 'see msim.log')
+
+    test_passed = 'Test passed.' in output
+    if (shall_panic and test_passed) or (not test_passed and not shall_panic):
         raise TesterException('test failed', 'see msim.log')
 
     logger.info('Checking test output ...')
@@ -269,6 +281,10 @@ def main():
                              default=None,
                              dest='toolchain_dir',
                              help='Toolchain directory.')
+    common_args.add_argument('--json-report',
+                             default=None,
+                             dest='json_report',
+                             help='Where to store report as JSON.')
 
     args = argparse.ArgumentParser(description='Run NSWI004 tests')
     args.set_defaults(action='help')
@@ -336,6 +352,13 @@ def main():
     report = run_tests(tests, extra_arguments)
 
     print_report(report)
+
+    if config.json_report is not None:
+        json_report = {
+            'tests': report
+        }
+        with open(config.json_report, 'w') as f:
+            f.write(json.dumps(json_report, sort_keys=True, indent=4) + "\n")
 
     return 0 if all_tests_passed(report) else 1
 

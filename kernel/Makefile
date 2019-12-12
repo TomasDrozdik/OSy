@@ -47,11 +47,15 @@ KERNEL_SOURCES = \
 	src/head.S \
 	src/debug/code.c \
 	src/debug/mm.c \
+	src/exc/exc.c \
+	src/exc/handlers.S \
 	src/lib/print.c \
 	src/lib/runtime.c \
 	src/mm/heap.c \
 	src/proc/context.S \
+	src/proc/mutex.c \
 	src/proc/scheduler.c \
+	src/proc/sem.c \
 	src/proc/thread.c
 
 BOOT_SOURCES = \

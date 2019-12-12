@@ -5,7 +5,7 @@
 #include <debug/mm.h>
 #include <lib/print.h>
 #include <mm/heap.h>
-
+#include <exc.h>
 #include <lib/print.h>
 
 /** Minimal size of an allocated payload.
@@ -83,6 +83,8 @@ static inline uintptr_t align(uintptr_t ptr, size_t size);
 static inline void compact(link_t* prev, link_t* next);
 
 void heap_init(void) {
+    bool enable=interrupts_disable();
+
     list_init(&blocks);
     list_init(&free_blocks);
 
@@ -93,15 +95,21 @@ void heap_init(void) {
 
     list_append(&blocks, &initial_header->link);
     list_append(&free_blocks, &initial_header->free_link);
+
+	interrupts_restore(enable);
 }
 
 void* kmalloc(size_t size) {
+    bool enable = interrupts_disable();
+
     size = align(size, MIN_ALLOCATION_SIZE);
     size_t actual_size = size + sizeof(block_header_t);
 
     list_foreach(free_blocks, block_header_t, free_link, header) {
         if (BLOCK_SIZE(header) == actual_size) {
             list_remove(&header->free_link);
+            interrupts_restore(enable);
+
             return PAYLOAD_FROM_HEADER(header);
         } else if (BLOCK_SIZE(header) >= actual_size + sizeof(block_header_t)
                         + MIN_ALLOCATION_SIZE) {
@@ -116,13 +124,18 @@ void* kmalloc(size_t size) {
             list_remove(&header->free_link);
             link_init(&header->free_link);
 
+			interrupts_restore(enable);
             return PAYLOAD_FROM_HEADER(header);
         }
     }
+
+	interrupts_restore(enable);
     return NULL;
 }
 
 void kfree(void* ptr) {
+    bool enable = interrupts_disable();
+
     block_header_t* header = HEADER_FROM_PAYLOAD(ptr);
     assert(!link_is_connected(&header->free_link));
 
@@ -130,6 +143,8 @@ void kfree(void* ptr) {
 
     compact(header->link.prev, &header->link);
     compact(&header->link, header->link.next);
+
+	interrupts_restore(enable);
 }
 
 static inline uintptr_t align(uintptr_t ptr, size_t size) {

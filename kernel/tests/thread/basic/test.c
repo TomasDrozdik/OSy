@@ -22,7 +22,7 @@ void kernel_test(void) {
     ktest_start("thread/basic");
 
     thread_t* worker;
-    int rc = thread_create(&worker, empty_worker, NULL, 0, "test-worker");
+    errno_t rc = thread_create(&worker, empty_worker, NULL, 0, "test-worker");
     ktest_assert_errno(rc, "thread_create");
 
 //    thread_t* worker2;
