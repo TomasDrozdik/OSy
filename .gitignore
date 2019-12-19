@@ -1,1 +1,9 @@
 /_build_*/
+*.o
+*.bin
+*.a
+*.dep
+*.map
+*.raw
+*.disasm
+*.dep

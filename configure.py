@@ -24,9 +24,14 @@ LD = $(TOOLCHAIN_DIR)/bin/$(TARGET)-ld
 OBJCOPY = $(TOOLCHAIN_DIR)/bin/$(TARGET)-objcopy
 OBJDUMP = $(TOOLCHAIN_DIR)/bin/$(TARGET)-objdump
 GDB = $(TOOLCHAIN_DIR)/bin/$(TARGET)-gdb
+AR = $(TOOLCHAIN_DIR)/bin/$(TARGET)-ar
 
 KERNEL_TEST_SOURCES = {kernel_test_sources}
 KERNEL_EXTRA_CFLAGS = {kernel_extra_cflags}
+
+SHARED_EXTRA_CFLAGS = {extra_cflags}
+
+USERSPACE_TEST_SOURCES = {userspace_test_sources}
 
 '''
 
@@ -62,6 +67,11 @@ loadermem load "kernel/loader.bin"
 
 # Console printer
 add dprinter printer 0x10000000
+
+# Setup userspace application
+add rom app 0x1FB00000
+app generic 128K
+app load "userspace/app.bin"
 
 '''
 
@@ -109,16 +119,28 @@ def main(argv):
         action='store_true',
         help='Build kernel in debug mode.'
     )
-    args.add_argument('--kernel-test',
-        default=None,
-        dest='kernel_test',
-        help='Kernel test (name).'
+    args.add_argument('-D',
+        default=[],
+        dest='defines',
+        action='append',
+        help='Extra defines'
     )
     args.add_argument('--memory-size',
         default=None,
         dest='memory_size',
         type=int,
         help='Base memory size (msim.conf) in KB'
+    )
+    tests = args.add_mutually_exclusive_group(required=False)
+    tests.add_argument('--kernel-test',
+        default=None,
+        dest='kernel_test',
+        help='Kernel test (name).'
+    )
+    tests.add_argument('--userspace-test',
+        default=None,
+        dest='userspace_test',
+        help='Userspace test (name).'
     )
     config = args.parse_args(argv[1:])
     
@@ -181,6 +203,7 @@ def main(argv):
     with open('config.mk', 'w') as f:
         kernel_test_sources = ''
         kernel_extra_cflags = []
+        userspace_test_sources = ''
         if config.debug:
             kernel_extra_cflags.append('-DKERNEL_DEBUG')
         if not (config.kernel_test is None):
@@ -193,17 +216,23 @@ def main(argv):
                         kernel_extra_cflags.append(i.format(
                             mainmem_size=config.memory_size
                         ))
+        if not (config.userspace_test is None):
+            userspace_test_sources = 'tests/{}/test.c'.format(config.userspace_test)
+            kernel_extra_cflags.append('-DUSERSPACE_TEST')
+        extra_cflags = " ".join("-D{}".format(i) for i in config.defines)
         f.write(CONFIG_MK_FMT.format(
             toolchain_dir=config.toolchain_dir,
             toolchain_target=config.toolchain_target,
             kernel_test_sources=kernel_test_sources,
             kernel_extra_cflags=' '.join(kernel_extra_cflags),
+            userspace_test_sources=userspace_test_sources,
+            extra_cflags=extra_cflags,
         ))
 
     # Create rest of files only when building in different directory
     if is_out_of_tree_build:
         # Create Makefiles
-        for sub in ['.', 'kernel', 'user']:
+        for sub in ['.', 'kernel', 'userspace', 'userspace/libc']:
             logger.debug('Creating Makefile inside {}/'.format(sub))
             os.makedirs(sub, exist_ok=True)
             with open(os.path.join(cwd, sub, 'Makefile'), 'w') as f:

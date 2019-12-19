@@ -6,6 +6,7 @@
 
 #include <proc/context.h>
 
+void handle_syscall(context_t* context);
 void handle_exception_general(context_t* context);
 bool interrupts_disable(void);
 void interrupts_restore(bool enable);
