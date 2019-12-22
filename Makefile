@@ -21,6 +21,7 @@ kernel:
 
 clean:
 	$(MAKE) -C kernel clean
+	rm -rf _build_kernel__*
 
 distclean:
 	$(MAKE) -C kernel distclean
