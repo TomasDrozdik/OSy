@@ -3,11 +3,11 @@
 
 #include <adt/list.h>
 #include <debug.h>
+#include <drivers/timer.h>
+#include <exc.h>
+#include <lib/print.h>
 #include <mm/heap.h>
 #include <proc/scheduler.h>
-#include <drivers/timer.h>
-#include <lib/print.h>
-#include <exc.h>
 
 /** List of ready threads. */
 static list_t ready_thread_queue;
@@ -59,7 +59,7 @@ void scheduler_init(void) {
     scheduled_thread = NULL;
     changed_scheduled_thread = false;
 
-	interrupts_restore(enable);
+    interrupts_restore(enable);
 }
 
 /** Marks given thread as ready to be executed.
@@ -94,7 +94,7 @@ void scheduler_remove_thread(thread_t* thread) {
     }
     list_remove(&thread->link);
 
-	interrupts_restore(enable);
+    interrupts_restore(enable);
 }
 
 /** Suspends given thread in scheduling.
@@ -120,7 +120,7 @@ void scheduler_suspend_thread(thread_t* thread) {
     list_remove(&thread->link);
     list_append(&suspended_thread_queue, &thread->link);
 
-	interrupts_restore(enable);
+    interrupts_restore(enable);
 }
 
 /** Wakes-up existing thread.
@@ -135,17 +135,23 @@ void scheduler_suspend_thread(thread_t* thread) {
  * @return Error code.
  * @retval EOK Thread was woken-up (or was already ready/running).
  * @retval EEXITED Thread already finished its execution.
- * TODO: @retval EINVAL Invalid thread.
+ * @retval EINVAL Invalid thread.
  */
 errno_t scheduler_wakeup_thread(thread_t* thread) {
     bool enable = interrupts_disable();
 
-    if (thread->state == FINISHED) {
+    switch (thread->state) {
+    case SUSPENDED:
+        break;
+    case FINISHED:
         interrupts_restore(enable);
         return EEXITED;
-    } else if (thread->state == READY) {
+    case READY:
         interrupts_restore(enable);
         return EOK;
+    default:
+        interrupts_restore(enable);
+        return EINVAL;
     }
 
     assert(thread->state == SUSPENDED);
@@ -161,8 +167,7 @@ errno_t scheduler_wakeup_thread(thread_t* thread) {
 /** Switch to next thread in the queue.
  * By calling context switch managed by thread_switch_to function.
  *
- * In case flag changed_scheduled_thread we do not pick next one just schedule
- * the current one.
+ * In case flag changed_scheduled_thread we do not pick next one just schedule * the current one.
 */
 void scheduler_schedule_next(void) {
     bool enable = interrupts_disable();
@@ -178,7 +183,7 @@ void scheduler_schedule_next(void) {
     assert(scheduled_thread->state == READY);
     thread_switch_to(scheduled_thread);
 
-	interrupts_restore(enable);
+    interrupts_restore(enable);
 }
 
 /** Returns the thread the scheduler has currently scheduled.
@@ -198,11 +203,11 @@ static inline void schedule(thread_t* thread) {
     } else { // Init thread
         list_append(&ready_thread_queue, &thread->link);
 
-		//Set interrupt to 1500 cycles(subject to change)
+        //Set interrupt to 1500 cycles(subject to change)
         timer_interrupt_after(CYCLES);
     }
 
-	interrupts_restore(enable);
+    interrupts_restore(enable);
 }
 
 static inline void pick_next_scheduled_thread() {
@@ -222,5 +227,5 @@ static inline void pick_next_scheduled_thread() {
     scheduled_thread = list_container_of(next_link, thread_t, link);
     assert(scheduled_thread->state == READY);
 
-	interrupts_restore(enable);
+    interrupts_restore(enable);
 }

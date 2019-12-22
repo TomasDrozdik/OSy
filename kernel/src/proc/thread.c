@@ -3,12 +3,12 @@
 
 #include <adt/list.h>
 #include <debug/code.h>
+#include <exc.h>
 #include <lib/print.h>
 #include <mm/heap.h>
 #include <proc/context.h>
 #include <proc/scheduler.h>
 #include <proc/thread.h>
-#include <exc.h>
 
 /** Calculates address of initial stack top of given thread.
  *
@@ -69,8 +69,8 @@ void threads_init(void) {
  */
 errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* data, unsigned int flags, const char* name) {
     bool enable = interrupts_disable();
-	
-	// Allocate enought memory for stack and thread_t structure.
+
+    // Allocate enought memory for stack and thread_t structure.
     // No heap is available.
     thread_t* thread = (thread_t*)kmalloc(sizeof(thread_t) + THREAD_STACK_SIZE);
     if (thread == NULL) {
@@ -93,7 +93,7 @@ errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* da
     *thread_out = thread;
     scheduler_add_ready_thread(*thread_out);
 
-	interrupts_restore(enable);
+    interrupts_restore(enable);
     return EOK;
 }
 
@@ -117,7 +117,7 @@ void thread_suspend(void) {
     scheduler_suspend_thread(running_thread);
     scheduler_schedule_next();
 
-	interrupts_restore(enable);
+    interrupts_restore(enable);
 }
 
 /** Terminate currently running thread.
@@ -145,7 +145,7 @@ void thread_finish(void* retval) {
     // Noreturn function
     while (1) {
         printk("error");
-	}
+    }
 }
 
 /** Tells if thread already called thread_finish() or returned from the entry
@@ -231,7 +231,7 @@ void thread_switch_to(thread_t* thread) {
 
     cpu_switch_context(stack_top_old, stack_top_new, 1);
 
-	interrupts_restore(enable);
+    interrupts_restore(enable);
 }
 
 static void thread_entry_func_wrapper() {

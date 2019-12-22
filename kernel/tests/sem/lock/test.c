@@ -9,9 +9,9 @@
  */
 
 #include <ktest.h>
+#include <lib/print.h>
 #include <proc/sem.h>
 #include <proc/thread.h>
-#include <lib/print.h>
 
 #define LOOPS 200
 #define WAIT_LOOPS 5
@@ -51,13 +51,13 @@ void kernel_test(void) {
         ktest_assert_errno(err, "thread_create");
     }
 
-	//printk("Thread count is: %d\n", thread_count);
+    //printk("Thread count is: %d\n", thread_count);
     for (size_t i = 0; i < thread_count; i++) {
         err = thread_join(threads[i], NULL);
         ktest_assert_errno(err, "thread_join");
     }
 
-	//printk("End count should be: %d\n", LOOPS * thread_count);
+    //printk("End count should be: %d\n", LOOPS * thread_count);
     ktest_assert(total_counter == LOOPS * thread_count, "total_counter is broken");
 
     ktest_passed();

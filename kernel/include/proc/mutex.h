@@ -6,8 +6,8 @@
 
 #include <adt/list.h>
 #include <errno.h>
-#include <proc/thread.h>
 #include <proc/scheduler.h>
+#include <proc/thread.h>
 #include <types.h>
 
 /** Mutex synchronization primitive. */

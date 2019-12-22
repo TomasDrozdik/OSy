@@ -1,9 +1,15 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2019 Charles University
 
-#include <proc/sem.h>
-#include <mm/heap.h>
 #include <exc.h>
+#include <mm/heap.h>
+#include <proc/sem.h>
+
+typedef struct {
+    link_t link;
+    sem_t* semaphore;
+    list_t queue;
+} sem_list_item_t;
 
 bool sem_first = true;
 
@@ -11,25 +17,25 @@ bool sem_first = true;
 static list_t sem_list;
 
 //Find appropriate semphore in our list
-sem_list_item* sem_list_find(sem_t* sem) {
-	list_foreach(sem_list, sem_list_item, link, item) {
+static sem_list_item_t* sem_list_find(sem_t* sem) {
+    list_foreach(sem_list, sem_list_item_t, link, item) {
         if (item->semaphore == sem) {
-			return item;
-		}
-	}
-	panic("Semaphore already destroyed.");
+            return item;
+        }
+    }
+    panic("Semaphore already destroyed.");
     return NULL;
 }
 
 //Wake up the next thread in semaphore queue
-void sem_wake_up_next(sem_list_item* item) {
+static void sem_wake_up_next(sem_list_item_t* item) {
     bool enable = interrupts_disable();
 
     thread_t* next_thread = list_item(list_pop(&item->queue), thread_t, link);
     next_thread->state = READY;
     scheduler_add_ready_thread(next_thread);
 
-	interrupts_restore(enable);
+    interrupts_restore(enable);
 }
 
 /** Initializes given semaphore.
@@ -45,9 +51,9 @@ errno_t sem_init(sem_t* sem, int value) {
     if (sem_first) {
         list_init(&sem_list);
         sem_first = false;
-	}
+    }
     sem->value = value;
-    sem_list_item* new_item = (sem_list_item*)kmalloc(sizeof(sem_list_item));
+    sem_list_item_t* new_item = (sem_list_item_t*)kmalloc(sizeof(sem_list_item_t));
     if (new_item == NULL) {
         interrupts_restore(enable);
         return ENOMEM;
@@ -56,8 +62,8 @@ errno_t sem_init(sem_t* sem, int value) {
     link_init(&new_item->link);
     list_init(&new_item->queue);
     list_append(&sem_list, &new_item->link);
-	
-	interrupts_restore(enable);
+
+    interrupts_restore(enable);
 
     return EOK;
 }
@@ -70,16 +76,16 @@ errno_t sem_init(sem_t* sem, int value) {
  */
 void sem_destroy(sem_t* sem) {
 
-	bool enable = interrupts_disable();
-    
-    sem_list_item* item = sem_list_find(sem);
-    panic_if(list_get_size(&item->queue)!=0, "Threads still waiting for semaphore");
+    bool enable = interrupts_disable();
+
+    sem_list_item_t* item = sem_list_find(sem);
+    panic_if(list_get_size(&item->queue) != 0, "Threads still waiting for semaphore");
     list_remove(&item->link);
     kfree(item);
 
     sem = NULL;
 
-	interrupts_restore(enable);
+    interrupts_restore(enable);
 }
 
 /** Get current value of the semaphore.
@@ -101,19 +107,19 @@ int sem_get_value(sem_t* sem) {
 void sem_wait(sem_t* sem) {
     bool enable = interrupts_disable();
 
-    while (sem_trywait(sem)==EBUSY) {
-        
-        sem_list_item* item = sem_list_find(sem);
+    while (sem_trywait(sem) == EBUSY) {
+
+        sem_list_item_t* item = sem_list_find(sem);
         thread_t* current = thread_get_current();
         scheduler_suspend_thread(current);
         current->state = WAITING;
         list_remove(&current->link);
         list_append(&item->queue, &current->link);
-		
-        thread_yield();       
-	}
 
-    interrupts_restore(enable);  
+        thread_yield();
+    }
+
+    interrupts_restore(enable);
 }
 
 /** Unlocks (ups/signals) the sempahore.
@@ -126,9 +132,9 @@ void sem_wait(sem_t* sem) {
 void sem_post(sem_t* sem) {
     bool enable = interrupts_disable();
 
-    sem_list_item* item = sem_list_find(sem);
-    if (list_get_size(&item->queue)!=0) {
-		
+    sem_list_item_t* item = sem_list_find(sem);
+    if (list_get_size(&item->queue) != 0) {
+
         sem_wake_up_next(item);
     }
 
@@ -136,7 +142,7 @@ void sem_post(sem_t* sem) {
 
     thread_yield();
 
-	interrupts_restore(enable);
+    interrupts_restore(enable);
 }
 
 /** Try to lock the semaphore without waiting.
@@ -155,10 +161,10 @@ errno_t sem_trywait(sem_t* sem) {
 
         interrupts_restore(enable);
         return EBUSY;
-	} else {
+    } else {
 
         sem->value--;
         interrupts_restore(enable);
         return EOK;
-	}
+    }
 }

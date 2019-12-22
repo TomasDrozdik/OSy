@@ -25,16 +25,15 @@ void kernel_test(void) {
     errno_t rc = thread_create(&worker, empty_worker, NULL, 0, "test-worker");
     ktest_assert_errno(rc, "thread_create");
 
-//    thread_t* worker2;
-//    rc = thread_create(&worker2, empty_worker, NULL, 0, "new-workerr");
-//    ktest_assert_errno(rc, "thread_create");
-//
-//    rc = thread_join(worker2, NULL);
-//    ktest_assert_errno(rc, "thread_join");
+    //    thread_t* worker2;
+    //    rc = thread_create(&worker2, empty_worker, NULL, 0, "new-workerr");
+    //    ktest_assert_errno(rc, "thread_create");
+    //
+    //    rc = thread_join(worker2, NULL);
+    //    ktest_assert_errno(rc, "thread_join");
 
     rc = thread_join(worker, NULL);
     ktest_assert_errno(rc, "thread_join");
-
 
     ktest_passed();
 }

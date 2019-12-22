@@ -3,10 +3,9 @@
 
 #include <adt/list.h>
 #include <debug/mm.h>
-#include <lib/print.h>
-#include <mm/heap.h>
 #include <exc.h>
 #include <lib/print.h>
+#include <mm/heap.h>
 
 /** Minimal size of an allocated payload.
  *  Anything below this size is increased to it.
@@ -83,7 +82,7 @@ static inline uintptr_t align(uintptr_t ptr, size_t size);
 static inline void compact(link_t* prev, link_t* next);
 
 void heap_init(void) {
-    bool enable=interrupts_disable();
+    bool enable = interrupts_disable();
 
     list_init(&blocks);
     list_init(&free_blocks);
@@ -96,7 +95,7 @@ void heap_init(void) {
     list_append(&blocks, &initial_header->link);
     list_append(&free_blocks, &initial_header->free_link);
 
-	interrupts_restore(enable);
+    interrupts_restore(enable);
 }
 
 void* kmalloc(size_t size) {
@@ -124,12 +123,12 @@ void* kmalloc(size_t size) {
             list_remove(&header->free_link);
             link_init(&header->free_link);
 
-			interrupts_restore(enable);
+            interrupts_restore(enable);
             return PAYLOAD_FROM_HEADER(header);
         }
     }
 
-	interrupts_restore(enable);
+    interrupts_restore(enable);
     return NULL;
 }
 
@@ -144,7 +143,7 @@ void kfree(void* ptr) {
     compact(header->link.prev, &header->link);
     compact(&header->link, header->link.next);
 
-	interrupts_restore(enable);
+    interrupts_restore(enable);
 }
 
 static inline uintptr_t align(uintptr_t ptr, size_t size) {
