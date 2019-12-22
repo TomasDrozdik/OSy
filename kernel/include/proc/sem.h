@@ -18,6 +18,7 @@
 
 typedef struct {
     int value;
+    list_t queue;
 } sem_t;
 
 errno_t sem_init(sem_t* sem, int value);
