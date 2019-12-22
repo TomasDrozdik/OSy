@@ -89,7 +89,8 @@
 .globl exception_tlb_refill
 .ent   exception_tlb_refill
 exception_tlb_refill:
-    announce_exception
+    j handle_tlb_refill_asm
+    nop
 .end exception_tlb_refill
 
 .org   0x100
@@ -129,6 +130,14 @@ start:
      */
     halt
 .end start
+
+.org 0x1000
+.globl tlb_refill_stack_space
+.ent tlb_refill_stack_space
+
+tlb_refill_stack_space:
+    nop
+.end tlb_refill_stack_space
 
 /*
  * Rest of code.

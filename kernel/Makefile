@@ -45,13 +45,17 @@ DEPEND_PREV = Makefile.depend.prev
 KERNEL_SOURCES = \
 	src/main.c \
 	src/head.S \
+	src/adt/bitmap.c \
 	src/debug/code.c \
 	src/debug/mm.c \
 	src/exc/exc.c \
 	src/exc/handlers.S \
 	src/lib/print.c \
 	src/lib/runtime.c \
+	src/mm/as.c \
+	src/mm/frame.c \
 	src/mm/heap.c \
+	src/mm/tlb.c \
 	src/proc/context.S \
 	src/proc/mutex.c \
 	src/proc/scheduler.c \
