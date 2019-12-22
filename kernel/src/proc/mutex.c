@@ -5,31 +5,20 @@
 #include <mm/heap.h>
 #include <proc/mutex.h>
 
-typedef struct list_item {
-    link_t link;
-    mutex_t* mutex;
-    list_t queue;
-    thread_t* owner;
-} mutex_list_item;
-
-bool mutex_first = true;
-
-//List of mutexes.
-static list_t mutex_list;
-
 /** Wakes up next thread in queue of given mutex.
  *
  * @param mutex Item with apropriate mutex.
  * 
  */
-void mutex_wake_up_next(mutex_list_item* item);
+static void mutex_wake_up_next(mutex_t* mutex) {
+    bool enable = interrupts_disable();
 
-/** Finds given mutex.
- *
- * @param mutex Mutex to find.
- * @return Item containing the mutex.
- */
-mutex_list_item* mutex_list_find(mutex_t* mutex);
+    thread_t* next_thread = list_item(list_pop(&mutex->queue), thread_t, link);
+    next_thread->state = READY;
+    scheduler_add_ready_thread(next_thread);
+
+    interrupts_restore(enable);
+}
 
 /** Initializes given mutex.
  *
@@ -40,44 +29,11 @@ mutex_list_item* mutex_list_find(mutex_t* mutex);
 errno_t mutex_init(mutex_t* mutex) {
     bool enable = interrupts_disable();
 
-    if (mutex_first) {
-        list_init(&mutex_list);
-        mutex_first = false;
-    }
     mutex->locked = false;
-    mutex_list_item* new_item = (mutex_list_item*)kmalloc(sizeof(mutex_list_item));
-    if (new_item == NULL) {
-        interrupts_restore(enable);
-        return ENOMEM;
-    }
-    new_item->mutex = mutex;
-    link_init(&new_item->link);
-    list_init(&new_item->queue);
-    list_append(&mutex_list, &new_item->link);
+    list_init(&mutex->queue);
 
     interrupts_restore(enable);
-
     return EOK;
-}
-
-void mutex_wake_up_next(mutex_list_item* item) {
-    bool enable = interrupts_disable();
-
-    thread_t* next_thread = list_item(list_pop(&item->queue), thread_t, link);
-    next_thread->state = READY;
-    scheduler_add_ready_thread(next_thread);
-
-    interrupts_restore(enable);
-}
-
-mutex_list_item* mutex_list_find(mutex_t* mutex) {
-    list_foreach(mutex_list, mutex_list_item, link, item) {
-        if (item->mutex == mutex) {
-            return item;
-        }
-    }
-    panic("Mutex already destroyed.");
-    return NULL;
 }
 
 /** Destroys given mutex.
@@ -89,12 +45,7 @@ mutex_list_item* mutex_list_find(mutex_t* mutex) {
 void mutex_destroy(mutex_t* mutex) {
     bool enable = interrupts_disable();
 
-    mutex_list_item* item = mutex_list_find(mutex);
     panic_if(mutex->locked == true, "Mutex still locked when a thread tried to destroy it!");
-    list_remove(&item->link);
-    kfree(item);
-
-    mutex = NULL;
 
     interrupts_restore(enable);
 }
@@ -108,14 +59,12 @@ void mutex_destroy(mutex_t* mutex) {
 void mutex_lock(mutex_t* mutex) {
     bool enable = interrupts_disable();
 
-    mutex_list_item* item = mutex_list_find(mutex);
-
     while (mutex_trylock(mutex) == EBUSY) {
         thread_t* current = thread_get_current();
         scheduler_suspend_thread(current);
         current->state = WAITING;
         list_remove(&current->link);
-        list_append(&item->queue, &current->link);
+        list_append(&mutex->queue, &current->link);
 
         thread_yield();
     }
@@ -136,14 +85,12 @@ void mutex_lock(mutex_t* mutex) {
 void mutex_unlock(mutex_t* mutex) {
     bool enable = interrupts_disable();
 
-    mutex_list_item* item = mutex_list_find(mutex);
-    panic_if(item->owner != thread_get_current(), "Different thread trying to unlock mutex.");
+    panic_if(mutex->owner != thread_get_current(), "Different thread trying to unlock mutex.");
 
     mutex->locked = false;
-    //printk("Unlocked.\n");
 
-    if (list_get_size(&item->queue) != 0) {
-        mutex_wake_up_next(item);
+    if (list_get_size(&mutex->queue) != 0) {
+        mutex_wake_up_next(mutex);
         thread_yield();
     }
 
@@ -161,14 +108,13 @@ void mutex_unlock(mutex_t* mutex) {
  */
 errno_t mutex_trylock(mutex_t* mutex) {
     bool enable = interrupts_disable();
-    mutex_list_item* item = mutex_list_find(mutex);
 
     if (mutex->locked) {
         interrupts_restore(enable);
         return EBUSY;
     } else {
         mutex->locked = true;
-        item->owner = thread_get_current();
+        mutex->owner = thread_get_current();
         interrupts_restore(enable);
         return EOK;
     }
