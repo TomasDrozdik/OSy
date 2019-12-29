@@ -118,7 +118,10 @@ errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* da
  * @retval INVAL Invalid flags (unused).
  */
 errno_t thread_create_new_as(thread_t** thread_out, thread_entry_func_t entry, void* data, unsigned int flags, const char* name, size_t as_size) {
-    return ENOIMPL;
+    if (as_size != 0) {
+        return ENOIMPL;
+    }
+    return thread_create(thread_out, entry, data, flags, name);
 }
 
 /** Return information about currently executing thread.
