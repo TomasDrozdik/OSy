@@ -1,99 +1,62 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2019 Charles University
 
+#include <adt/bitmap.h>
+#include <debug/mm.h>
+#include <exc.h>
+#include <lib/print.h>
 #include <mm/frame.h>
 #include <types.h>
+#include <utils.h>
 
+#define GET_ADDRESS(idx) \
+    (page_start + (idx)*FRAME_SIZE)
 
-// Max memory size is set to 512MB
-#define MAX_MEMORY_SIZE (512 * 1024 * 1024)
+#define GET_INDEX(address) \
+    (((address)-page_start) / FRAME_SIZE)
 
-// Max number of nodes in a tree according to given page size 
-#define MAX_TREE_SIZE \
-    (MAX_MEMORY_SIZE / FRAME_SIZE * 2)
+static bitmap_t bitmap;
+static uint8_t* backing_field;
+static size_t page_count;
 
-#define LEFT(IDX) (2 * (IDX + 1) - 1)
-#define RIGHT(IDX) (2 * (IDX + 1))
-
-#define SIZE_FROM_DEPTH \
-    ()
-
-typedef enum {
-    FREE,
-    FULL,
-    SPLIT,
-} node_t;
-
-size_t memory_size;
-uintptr_t start_ptr;
-node_t buddy_tree[MAX_TREE_SIZE];
-
-static inline uintptr_t align(uintptr_t ptr, size_t size) {
-    size_t remainder;
-    remainder = ptr % size;
-    if (remainder == 0) {
-        return ptr;
-    }
-    return ptr - remainder + size;
-}
-
-static inline uint32_t get_next_power_of_2(uint32_t n) {
-    --n;
-    n |= n >> 1;
-    n |= n >> 2;
-    n |= n >> 4;
-    n |= n >> 8;
-    n |= n >> 16;
-    return n + 1;
-}
-
-static inline uint32_t is_power_of_2(uint32_t n) {
-    return n && !(n & (n - 1));
-}
-
-static size_t alloc(size_t idx, size_t current_node_size, size_t size) {
-    if (buddy_tree[idx] == FULL) {
-        return -1;
-    }
-
-    if (buddy_tree[idx] == FREE) {
-        if (current_node_size < 2 * size) {
-            return idx;
-        } else {
-            buddy_tree[idx] = SPLIT;
-            buddy_tree[LEFT(idx)] = FREE;
-            buddy_tree[RIGHT(idx)] = FREE;
-        }
-    }
-
-    if (buddy_tree[idx] == SPLIT) {
-        size_t ret;
-        
-        ret = alloc(LEFT(idx), current_node_size / FRAME_SIZE, size);
-        if (ret != -1) {
-            return ret;
-        }
-
-        ret = alloc(RIGHT(idx), current_node_size / FRAME_SIZE, size);
-        if (ret != -1) {
-            return ret;
-        }
-    }
-
-    assert(false);
-    return -1;
-}
+static uintptr_t start;
+static uintptr_t page_start;
+static uintptr_t end;
 
 /**
  * Initializes frame allocator.
- *j
+ *
  * Called once at system boot.
  */
 void frame_init(void) {
-    memory_size = align(debug_get_memory_size(), FRAME_SIZE);
-    start_ptr = align(debug_get_kernel_endptr(), FRAME_SIZE);
+    bool enable = interrupts_disable();
 
-    buddy_tree[0] = FREE;
+    // Find start and end of address space in kseg0 alligned to FRAME_SIZE.
+    start = round_up(debug_get_kernel_endptr(), FRAME_SIZE);
+    end = round_down(debug_get_base_memory_endptr(), FRAME_SIZE);
+
+    // See how many pages fit in given continuous block.
+    page_count = (end - round_up(start, FRAME_SIZE)) / FRAME_SIZE;
+    size_t bitmap_size = BITMAP_GET_STORAGE_SIZE(page_count);
+
+    // Since bitmap backing field is sotred in the beginning of available
+    // address space.
+    page_count -= round_up(bitmap_size, FRAME_SIZE) / FRAME_SIZE;
+    bitmap_size = BITMAP_GET_STORAGE_SIZE(page_count);
+
+    backing_field = (uint8_t*)start;
+    page_start = end - page_count * FRAME_SIZE;
+
+    // Assert that both bitmap backing_field and pages fit into given space.
+    panic_if(start + bitmap_size >= end - page_count * FRAME_SIZE || page_count == 0,
+            "Frame init failed to create bitmap and corresponding pages in"
+            " available in addresss range [%p, %p] with corresponding"
+            " page count %u",
+            start, end, page_count);
+
+    bitmap_init(&bitmap, page_count, backing_field);
+
+    interrupts_restore(enable);
 }
 
 /**
@@ -110,23 +73,18 @@ void frame_init(void) {
  * @retval ENOMEM Not enough memory.
  */
 errno_t frame_alloc(size_t count, uintptr_t* phys) {
-    size_t size = count * FRAME_SIZE;
     size_t idx;
-
-    idx = alloc(0, memory_size, size);
-
-    if (idx == -1) {
+    errno_t err = bitmap_find_range(&bitmap, count, false, &idx);
+    switch (err) {
+    case EOK:
+        break;
+    case ENOENT:
         return ENOMEM;
+    default:
+        assert(false);
     }
-
-    idx += 1;
-    size_t next_power_of_2 = get_next_power_of_2(idx);
-    size_t items_in_given_depth = is_power_of_2(idx) ? idx : next_power_of_2;
-    size_t initial_idx_in_given_depth = is_power_of_2(idx) ? idx :
-            items_in_given_depth >> 1;
-
-    *phys = start_ptr + (memory_size / items_in_given_depth *
-            (idx - initial_idx_in_given_depth));
+    bitmap_fill_range(&bitmap, idx, count);
+    *phys = KSEG0_TO_PHYS(GET_ADDRESS(idx));
     return EOK;
 }
 
@@ -141,10 +99,52 @@ errno_t frame_alloc(size_t count, uintptr_t* phys) {
  * @param phys Physical address of the first frame in sequence.
  * @return Error code.
  * @retval EOK Frames freed.
- * @retval ENOENT Invalid frame address.
+ * @retval ENOENT Invalid frame address or invalid count.
  * @retval EBUSY Some frames were not allocated (double free).
  */
 errno_t frame_free(size_t count, uintptr_t phys) {
-    
-    return ENOIMPL;
+    phys = PHYS_TO_KSEG0(phys);
+    if (phys % FRAME_SIZE != 0 || !(phys >= page_start && phys <= end) || !(phys + count * FRAME_SIZE <= end)) {
+        return ENOENT;
+    }
+    size_t idx = GET_INDEX(phys);
+    if (!bitmap_check_range_is(&bitmap, idx, count, true)) {
+        return EBUSY;
+    }
+    bitmap_clear_range(&bitmap, idx, count);
+    return EOK;
+}
+
+size_t get_page_count() {
+    return page_count;
+}
+
+void debug_print_paging() {
+    printk("\nDEBUG PRINT PAGING\n");
+    printk("Memory used for paging: %p <-> %p\n"
+           "Page count: %u\n",
+            page_start, end, page_count);
+
+    size_t prev_idx = 0;
+    size_t idx = 0;
+    int current = bitmap_is_set(&bitmap, idx);
+    int prev = bitmap_is_set(&bitmap, idx);
+    for (idx = 0; idx < page_count; ++idx) {
+        current = bitmap_is_set(&bitmap, idx);
+        if (prev != current) {
+            printk("\t%p:%u <-> %p:%u %s\n",
+                    GET_ADDRESS(prev_idx), prev_idx,
+                    page_start + ((idx - 1) * FRAME_SIZE), idx - 1,
+                    (prev) ? "ALLOCATED" : "FREE");
+            prev_idx = idx;
+            prev = current;
+        }
+    }
+    if (prev == current) {
+        printk("\t%p:%u <-> %p:%u %s\n",
+                GET_ADDRESS(prev_idx), prev_idx,
+                GET_ADDRESS(idx - 1), idx - 1,
+                (prev) ? "ALLOCATED" : "FREE");
+    }
+    printk("END DEBUG PRINT PAGING\n");
 }

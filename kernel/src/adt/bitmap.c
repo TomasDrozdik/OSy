@@ -18,7 +18,8 @@ void bitmap_init(bitmap_t* bitmap, size_t length, uint8_t* storage) {
     }
 }
 
-static inline void apply_mask(bitmap_t* bitmap, size_t unit_index, unsigned int mask, bool bits_set) {
+static inline void apply_mask(bitmap_t* bitmap, size_t unit_index,
+        unsigned int mask, bool bits_set) {
     if (bits_set) {
         bitmap->data[unit_index] |= mask;
     } else {
@@ -26,7 +27,18 @@ static inline void apply_mask(bitmap_t* bitmap, size_t unit_index, unsigned int 
     }
 }
 
-static void bitmap_set_range(bitmap_t* bitmap, size_t start, size_t count, bool bits_set) {
+static inline bool check_bits_set_to(bitmap_t* bitmap, size_t unit_index,
+        unsigned int mask, bool bits_set) {
+    unsigned int data = bitmap->data[unit_index] & mask;
+    if (bits_set) {
+        return data & mask;
+    } else {
+        return data == 0;
+    }
+}
+
+static void bitmap_set_range(bitmap_t* bitmap, size_t start, size_t count,
+        bool bits_set) {
     size_t first_unit_index = start / BITMAP_BITS_PER_UNIT;
     size_t last_unit_index = (start + count) / BITMAP_BITS_PER_UNIT;
 
@@ -38,7 +50,8 @@ static void bitmap_set_range(bitmap_t* bitmap, size_t start, size_t count, bool 
 
     unsigned int first_mask = (~0U) << (start % BITMAP_BITS_PER_UNIT);
     apply_mask(bitmap, first_unit_index, first_mask, bits_set);
-    for (size_t unit_index = first_unit_index + 1; unit_index < last_unit_index; unit_index++) {
+    for (size_t unit_index = first_unit_index + 1; unit_index < last_unit_index;
+            unit_index++) {
         apply_mask(bitmap, unit_index, ~0U, bits_set);
     }
     unsigned int last_mask = (1 << ((start + count) % BITMAP_BITS_PER_UNIT)) - 1;
@@ -79,7 +92,8 @@ void bitmap_clear_range(bitmap_t* bitmap, size_t start, size_t count) {
  * @retval EOK Sequence found, start contains valid index.
  * @retval ENOENT Sequence of given length not found.
  */
-errno_t bitmap_find_range(bitmap_t* bitmap, size_t count, bool bits_set, size_t* start) {
+errno_t bitmap_find_range(bitmap_t* bitmap, size_t count, bool bits_set,
+        size_t* start) {
     if (count > bitmap->length) {
         return ENOENT;
     }
@@ -106,6 +120,8 @@ errno_t bitmap_find_range(bitmap_t* bitmap, size_t count, bool bits_set, size_t*
 
 /** Checks that given range is full filled or cleared.
  *
+ * TODO: make this fast by AND-ing whole bytes.
+ *
  * Note that this function is slow. Recommended to use in assertions only.
  *
  * @param bitmap Bitmap to use.
@@ -114,7 +130,35 @@ errno_t bitmap_find_range(bitmap_t* bitmap, size_t count, bool bits_set, size_t*
  * @param bits_set Expected value.
  * @return Whether the sequence contains given value.
  */
-bool bitmap_check_range_is(bitmap_t* bitmap, size_t start, size_t count, bool bits_set) {
+bool bitmap_check_range_is(bitmap_t* bitmap, size_t start, size_t count,
+        bool bits_set) {
+// FIXME: this implementation does fail in stress test => there is a bug
+#if 0
+    size_t first_unit_index = start / BITMAP_BITS_PER_UNIT;
+    size_t last_unit_index = (start + count) / BITMAP_BITS_PER_UNIT;
+
+    if (first_unit_index == last_unit_index) {
+        unsigned int mask = ((1 << count) - 1) << (start % BITMAP_BITS_PER_UNIT);
+        return check_bits_set_to(bitmap, first_unit_index, mask, bits_set);
+    }
+
+    unsigned int first_mask = (~0U) << (start % BITMAP_BITS_PER_UNIT);
+    if (!check_bits_set_to(bitmap, first_unit_index, first_mask, bits_set)) {
+        return false;
+    }
+    for (size_t unit_index = first_unit_index + 1; unit_index < last_unit_index;
+            unit_index++) {
+        if (!check_bits_set_to(bitmap, unit_index, ~0U, bits_set)) {
+            return false;
+        }
+    }
+    unsigned int last_mask =
+            (1 << ((start + count) % BITMAP_BITS_PER_UNIT)) - 1;
+    if (!check_bits_set_to(bitmap, last_unit_index, last_mask, bits_set)) {
+        return false;
+    }
+    return true;
+#else
     bits_set = !!bits_set;
     for (size_t i = start; i < start + count; i++) {
         if (bits_set != bitmap_is_set(bitmap, i)) {
@@ -122,4 +166,5 @@ bool bitmap_check_range_is(bitmap_t* bitmap, size_t start, size_t count, bool bi
         }
     }
     return true;
+#endif
 }

@@ -15,7 +15,9 @@ static void* init_thread(void* ignored) {
 #ifdef KERNEL_TEST
     kernel_test();
 #else
-    printk("%s: Hello, World!\n", thread_get_current()->name);
+    printk("%s: Hello, World!\n\n", thread_get_current()->name);
+    debug_print_heap();
+    debug_print_paging();
 #endif
     printk("\nHalt.\n");
     machine_halt();
@@ -34,7 +36,12 @@ static void* init_thread(void* ignored) {
  */
 void kernel_main(void) {
     frame_init();
+    debug_print_paging();
+
     heap_init();
+    debug_print_heap();
+    debug_print_paging();
+
     as_init();
     scheduler_init();
     threads_init();

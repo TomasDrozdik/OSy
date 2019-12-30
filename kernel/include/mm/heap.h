@@ -16,4 +16,6 @@ void heap_init(void);
 void* kmalloc(size_t size);
 void kfree(void* ptr);
 
+void debug_print_heap(void);
+
 #endif

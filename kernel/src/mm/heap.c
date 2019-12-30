@@ -5,7 +5,9 @@
 #include <debug/mm.h>
 #include <exc.h>
 #include <lib/print.h>
+#include <mm/frame.h>
 #include <mm/heap.h>
+#include <utils.h>
 
 /** Minimal size of an allocated payload.
  *  Anything below this size is increased to it.
@@ -67,13 +69,6 @@ typedef struct block_header {
     link_t free_link;
 } block_header_t;
 
-/** Align the pointer.
- * @param ptr Pointer to align.
- * @param size Alignt according to the given size.
- * @returns Aligned pointer.
- */
-static inline uintptr_t align(uintptr_t ptr, size_t size);
-
 /** Compact two neighboring links.
  * Do check whether both are free and then compacts both to prev header.
  * @param prev Link before @next.
@@ -87,8 +82,12 @@ void heap_init(void) {
     list_init(&blocks);
     list_init(&free_blocks);
 
-    uintptr_t start_ptr = align(debug_get_kernel_endptr(), MIN_ALLOCATION_SIZE);
-    end_ptr = debug_get_base_memory_endptr();
+    // Prealloc half of the pages.
+    uintptr_t start_ptr;
+    size_t page_count = get_page_count() / 2;
+    frame_alloc(page_count, &start_ptr);
+    start_ptr = PHYS_TO_KSEG0(start_ptr);
+    end_ptr = start_ptr + page_count * FRAME_SIZE;
 
     block_header_t* initial_header = (block_header_t*)start_ptr;
 
@@ -101,7 +100,7 @@ void heap_init(void) {
 void* kmalloc(size_t size) {
     bool enable = interrupts_disable();
 
-    size = align(size, MIN_ALLOCATION_SIZE);
+    size = round_up(size, MIN_ALLOCATION_SIZE);
     size_t actual_size = size + sizeof(block_header_t);
 
     list_foreach(free_blocks, block_header_t, free_link, header) {
@@ -127,9 +126,20 @@ void* kmalloc(size_t size) {
             return PAYLOAD_FROM_HEADER(header);
         }
     }
-
     interrupts_restore(enable);
     return NULL;
+}
+
+void debug_print_heap() {
+    printk("\nDEBUG PRINT HEAP\n");
+    printk("\tBLOCK_LIST: %pL\n", &blocks);
+
+    list_foreach(blocks, block_header_t, link, header) {
+        printk(
+                "\th[p: %p, size: %u, free: %u] ->\n",
+                &header->link, BLOCK_SIZE(header), IS_FREE(header));
+    }
+    printk("END DEBUG PRINT HEAP\n");
 }
 
 void kfree(void* ptr) {
@@ -144,16 +154,6 @@ void kfree(void* ptr) {
     compact(&header->link, header->link.next);
 
     interrupts_restore(enable);
-}
-
-static inline uintptr_t align(uintptr_t ptr, size_t size) {
-    // TODO: consider using trick with next power of 2
-    size_t remainder;
-    remainder = ptr % size;
-    if (remainder == 0) {
-        return ptr;
-    }
-    return ptr - remainder + size;
 }
 
 static inline void compact(link_t* prev, link_t* next) {
