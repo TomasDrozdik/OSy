@@ -45,7 +45,7 @@
  * @param HEADERPTR Pointer to the header of a block to check.
  * @returns Size of a block in size_t type.
  */
-#define BLOCK_SIZE(HEADERPTR) ((size_t)(valid_link(blocks, HEADERPTR->link.next) ? (uintptr_t)HEADERPTR->link.next - (uintptr_t)&HEADERPTR->link : end_ptr - (uintptr_t)HEADERPTR))
+#define BLOCK_SIZE(HEADERPTR) ((size_t)(valid_link(blocks, HEADERPTR->link.next) ? (uintptr_t)HEADERPTR->link.next - (uintptr_t)&HEADERPTR->link : end - (uintptr_t)HEADERPTR))
 
 /** Checks if given header is free.
  * By checking validity of free_link. This means that each free block HAS to
@@ -59,7 +59,7 @@
 /** List of all blocks in heap. */
 static list_t blocks;
 static list_t free_blocks;
-static uintptr_t end_ptr;
+static uintptr_t end;
 
 /** Each block has a header which contains its size i.e size of block header +
  *  block payload, free flag and a link which links it to all othe blocks.
@@ -82,14 +82,17 @@ void heap_init(void) {
     list_init(&blocks);
     list_init(&free_blocks);
 
-    // Prealloc half of the pages.
-    uintptr_t start_ptr;
+    // Prealloc 1/2 of the pages.
+    // Since our allocator requires continuous memory block we are not
+    // allocating pages dynamically but rather statically preallocate half of
+    // them and leave the rest to the page allocator.
+    uintptr_t start;
     size_t page_count = get_page_count() / 2;
-    frame_alloc(page_count, &start_ptr);
-    start_ptr = PHYS_TO_KSEG0(start_ptr);
-    end_ptr = start_ptr + page_count * FRAME_SIZE;
+    frame_alloc(page_count, &start);
+    start = PHYS_TO_KSEG0(start);
+    end = start + page_count * FRAME_SIZE;
 
-    block_header_t* initial_header = (block_header_t*)start_ptr;
+    block_header_t* initial_header = (block_header_t*)start;
 
     list_append(&blocks, &initial_header->link);
     list_append(&free_blocks, &initial_header->free_link);
@@ -146,7 +149,7 @@ void kfree(void* ptr) {
     bool enable = interrupts_disable();
 
     block_header_t* header = HEADER_FROM_PAYLOAD(ptr);
-    assert(!link_is_connected(&header->free_link));
+    assert(IS_FREE(header));
 
     list_prepend(&free_blocks, &header->free_link);
 

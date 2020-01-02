@@ -16,7 +16,7 @@
 #include <proc/thread.h>
 
 #define LOOPS 100
-#define BASE_COUNT 15
+#define BASE_COUNT 5
 #define QUEUE_SIZE (BASE_COUNT * 2)
 #define TOTAL_THREAD_COUNT (6 * BASE_COUNT)
 

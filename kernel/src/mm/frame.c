@@ -36,7 +36,7 @@ void frame_init(void) {
     end = round_down(debug_get_base_memory_endptr(), FRAME_SIZE);
 
     // See how many pages fit in given continuous block.
-    page_count = (end - round_up(start, FRAME_SIZE)) / FRAME_SIZE;
+    page_count = (end - start) / FRAME_SIZE;
     size_t bitmap_size = BITMAP_GET_STORAGE_SIZE(page_count);
 
     // Since bitmap backing field is sotred in the beginning of available
@@ -48,11 +48,15 @@ void frame_init(void) {
     page_start = end - page_count * FRAME_SIZE;
 
     // Assert that both bitmap backing_field and pages fit into given space.
-    panic_if(start + bitmap_size >= end - page_count * FRAME_SIZE || page_count == 0,
+    assert(start % FRAME_SIZE == 0 &&
+           page_start % FRAME_SIZE == 0 && 
+           end % FRAME_SIZE == 0);
+    panic_if(start + bitmap_size > page_start || page_count == 0,
             "Frame init failed to create bitmap and corresponding pages in"
             " available in addresss range [%p, %p] with corresponding"
-            " page count %u",
-            start, end, page_count);
+            " page count %u in starting from %p\n"
+            "Bitmap size: %u\n",
+            start, end, page_count, page_start, bitmap_size);
 
     bitmap_init(&bitmap, page_count, backing_field);
 
