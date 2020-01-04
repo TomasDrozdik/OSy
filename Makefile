@@ -10,6 +10,7 @@ DIFF = diff
 
 .PHONY: all clean distclean kernel run-msim-gdb run-gdb cstyle fix-cstyle test-all
 
+SUITE_ALL=suite_all.txt
 
 
 ### Default target
@@ -39,6 +40,9 @@ cstyle:
 fix-cstyle:
 	find kernel/ -name '*.[ch]' -exec clang-format -style=file -i {} \;
 
-test-all:
-	for i in `seq 5`; do ./tools/tester.py suite suite_as$$i.txt; done
+$(SUITE_ALL): suite_as1.txt suite_as2.txt suite_as3.txt suite_as4.txt suite_as5.txt
+		cat $^ > $@
+
+test-all: $(SUITE_ALL)
+	./tools/tester.py suite $<
 
