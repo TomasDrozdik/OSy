@@ -8,7 +8,7 @@ DIFF = diff
 
 ### Phony targets
 
-.PHONY: all clean distclean kernel run-msim-gdb run-gdb cstyle fix-cstyle
+.PHONY: all clean distclean kernel run-msim-gdb run-gdb cstyle fix-cstyle test-all
 
 
 
@@ -21,11 +21,11 @@ kernel:
 
 clean:
 	$(MAKE) -C kernel clean
-	rm -rf _build_kernel__*
 
 distclean:
 	$(MAKE) -C kernel distclean
 	rm -f config.mk
+	rm -rf _build_kernel__*
 
 run-msim-gdb:
 	msim -g $(GDB_PORT)
@@ -38,3 +38,7 @@ cstyle:
 
 fix-cstyle:
 	find kernel/ -name '*.[ch]' -exec clang-format -style=file -i {} \;
+
+test-all:
+	for i in `seq 5`; do ./tools/tester.py suite suite_as$$i.txt; done
+
