@@ -36,12 +36,7 @@ static void* init_thread(void* ignored) {
  */
 void kernel_main(void) {
     frame_init();
-    debug_print_paging();
-
     heap_init();
-    debug_print_heap();
-    debug_print_paging();
-
     as_init();
     scheduler_init();
     threads_init();
