@@ -22,7 +22,7 @@ static void* endless_worker(void* ignored) {
 }
 
 void kernel_test(void) {
-    ktest_start("thread/basic");
+    ktest_start("thread/kill");
 
     thread_t* worker;
     errno_t err = thread_create(&worker, endless_worker, NULL, 0, "endless");
