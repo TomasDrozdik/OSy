@@ -16,36 +16,39 @@
 
 /** Gets pointer to the header of a block whith the corresponding payload.
  *
- * @param PTR Pointer to payload, i.e. returned by kmalloc.
+ * @param ptr Pointer to payload, i.e. returned by kmalloc.
  * @returns Pointer to block_header_t of given block.
  */
-#define HEADER_FROM_PAYLOAD(PTR) \
-    ((block_header_t*)((uintptr_t)PTR - sizeof(block_header_t)))
+#define HEADER_FROM_PAYLOAD(ptr) \
+    ((block_header_t*)((uintptr_t)(ptr) - sizeof(block_header_t)))
 
 /** Gets pointer to the payload of a block from givne payload link.
  *
- * @param PTR Pointer to payload, i.e. returned by kmalloc.
+ * @param headerptr Pointer to payload, i.e. returned by kmalloc.
  * @returns Pointer to block_header_t of given block.
  */
-#define PAYLOAD_FROM_HEADER(HEADERPTR) \
-    ((void*)((uintptr_t)HEADERPTR + sizeof(block_header_t)))
+#define PAYLOAD_FROM_HEADER(headerptr) \
+    ((void*)((uintptr_t)(headerptr) + sizeof(block_header_t)))
 
 /** Get the pointer to the block_header structure from given link pointer.
  *
- * @param LINKPTR Pointer to link_t.
+ * @param linkptr Pointer to link_t.
  * @returns Pointer to block_header.
  */
-#define HEADER_FROM_LINK(LINKPTR) \
-    list_item(LINKPTR, block_header_t, link)
+#define HEADER_FROM_LINK(linkptr) \
+    list_item((linkptr), block_header_t, link)
 
 /** Computes size of given block.
  * By comparing its link with link of next block. If next block is not valid
  * i.e. its a head of the list (i.e. last item in memory) then just compare it
  * to the memory endptr.
- * @param HEADERPTR Pointer to the header of a block to check.
+ * @param headerptr Pointer to the header of a block to check.
  * @returns Size of a block in size_t type.
  */
-#define BLOCK_SIZE(HEADERPTR) ((size_t)(valid_link(blocks, HEADERPTR->link.next) ? (uintptr_t)HEADERPTR->link.next - (uintptr_t)&HEADERPTR->link : end - (uintptr_t)HEADERPTR))
+#define BLOCK_SIZE(headerptr) \
+    ((size_t)(valid_link(blocks, (headerptr)->link.next) ? \
+        (uintptr_t)(headerptr)->link.next - (uintptr_t)&(headerptr)->link : \
+        end - (uintptr_t)(headerptr)))
 
 /** Checks if given header is free.
  * By checking validity of free_link. This means that each free block HAS to
@@ -53,8 +56,8 @@
  * @param HEADERPTR Pointer to the header of block to check.
  * @returns True if given block is in free_list, false otherwise.
  */
-#define IS_FREE(HEADERPTR) \
-    link_is_connected(&HEADERPTR->free_link)
+#define IS_FREE(headerptr) \
+    link_is_connected(&(headerptr)->free_link)
 
 /** List of all blocks in heap. */
 static list_t blocks;
@@ -109,8 +112,9 @@ void* kmalloc(size_t size) {
     list_foreach(free_blocks, block_header_t, free_link, header) {
         if (BLOCK_SIZE(header) == actual_size) {
             list_remove(&header->free_link);
-            interrupts_restore(enable);
+            link_init(&header->free_link);
 
+            interrupts_restore(enable);
             return PAYLOAD_FROM_HEADER(header);
         } else if (BLOCK_SIZE(header) >= actual_size + sizeof(block_header_t)
                         + MIN_ALLOCATION_SIZE) {
@@ -133,6 +137,21 @@ void* kmalloc(size_t size) {
     return NULL;
 }
 
+void kfree(void* ptr) {
+    bool enable = interrupts_disable();
+
+    block_header_t* header = HEADER_FROM_PAYLOAD(ptr);
+    panic_if(IS_FREE(header),
+            "Freeing memory block which is not allocated.\n");
+
+    list_prepend(&free_blocks, &header->free_link);
+
+    compact(header->link.prev, &header->link);
+    compact(&header->link, header->link.next);
+
+    interrupts_restore(enable);
+}
+
 void debug_print_heap() {
     printk("\nDEBUG PRINT HEAP\n");
     printk("\tBLOCK_LIST: %pL\n", &blocks);
@@ -143,20 +162,6 @@ void debug_print_heap() {
                 &header->link, BLOCK_SIZE(header), IS_FREE(header));
     }
     printk("END DEBUG PRINT HEAP\n");
-}
-
-void kfree(void* ptr) {
-    bool enable = interrupts_disable();
-
-    block_header_t* header = HEADER_FROM_PAYLOAD(ptr);
-    assert(IS_FREE(header));
-
-    list_prepend(&free_blocks, &header->free_link);
-
-    compact(header->link.prev, &header->link);
-    compact(&header->link, header->link.next);
-
-    interrupts_restore(enable);
 }
 
 static inline void compact(link_t* prev, link_t* next) {
