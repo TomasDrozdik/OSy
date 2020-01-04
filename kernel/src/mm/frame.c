@@ -77,18 +77,22 @@ void frame_init(void) {
  * @retval ENOMEM Not enough memory.
  */
 errno_t frame_alloc(size_t count, uintptr_t* phys) {
+    bool enable = interrupts_disable();
     size_t idx;
     errno_t err = bitmap_find_range(&bitmap, count, false, &idx);
     switch (err) {
     case EOK:
         break;
     case ENOENT:
+        interrupts_restore(enable);
         return ENOMEM;
     default:
         assert(false);
     }
     bitmap_fill_range(&bitmap, idx, count);
     *phys = KSEG0_TO_PHYS(GET_ADDRESS(idx));
+
+    interrupts_restore(enable);
     return EOK;
 }
 
@@ -107,15 +111,19 @@ errno_t frame_alloc(size_t count, uintptr_t* phys) {
  * @retval EBUSY Some frames were not allocated (double free).
  */
 errno_t frame_free(size_t count, uintptr_t phys) {
+    bool enable = interrupts_disable();
     phys = PHYS_TO_KSEG0(phys);
     if (phys % FRAME_SIZE != 0 || !(phys >= page_start && phys <= end) || !(phys + count * FRAME_SIZE <= end)) {
         return ENOENT;
     }
     size_t idx = GET_INDEX(phys);
     if (!bitmap_check_range_is(&bitmap, idx, count, true)) {
+        interrupts_restore(enable);
         return EBUSY;
     }
     bitmap_clear_range(&bitmap, idx, count);
+
+    interrupts_restore(enable);
     return EOK;
 }
 
@@ -124,6 +132,7 @@ size_t get_page_count() {
 }
 
 void debug_print_paging() {
+    bool enable = interrupts_disable();
     printk("\nDEBUG PRINT PAGING\n");
     printk("Memory used for paging: %p <-> %p\n"
            "Page count: %u\n",
@@ -151,4 +160,5 @@ void debug_print_paging() {
                 (prev) ? "ALLOCATED" : "FREE");
     }
     printk("END DEBUG PRINT PAGING\n");
+    interrupts_restore(enable);
 }
