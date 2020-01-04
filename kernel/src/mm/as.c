@@ -1,13 +1,37 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2019 Charles University
 
+#include <exc.h>
 #include <mm/as.h>
+#include <mm/heap.h>
+#include <mm/frame.h>
+#include <utils.h>
+
+static size_t free_asid_stack_top;
+static uint8_t free_asid_stack[ASID_COUNT];
 
 /** Initializes support for address spaces.
  *
  * Called once at system boot
  */
 void as_init(void) {
+    bool enable = interrupts_disable();
+
+    for (size_t i = 0; i < ASID_COUNT; ++i) {
+        free_asid_stack[i] = i;
+    }
+    free_asid_stack_top = 0;
+
+    interrupts_restore(enable);
+}
+
+static inline uint8_t get_next_asid() {
+    // Work with static global data -> prevent races.
+    bool enable = interrupts_disable();
+    panic_if(free_asid_stack_top >= ASID_COUNT, "Asid space is used up.");
+    uint8_t asid = free_asid_stack[free_asid_stack_top++];
+    interrupts_restore(enable);
+    return asid;
 }
 
 /** Create new address space.
@@ -18,16 +42,40 @@ void as_init(void) {
  * @retval NULL Out of memory.
  */
 as_t* as_create(size_t size, unsigned int flags) {
-    return NULL;
+    panic_if(size % PAGE_SIZE != 0, "AS size not alligned to PAGE_SIZE.\n");
+    as_t* as = kmalloc(sizeof(as_t));
+    if (!as) {
+        return NULL;
+    }
+    as->size = size;
+    errno_t err = frame_alloc(as->size / PAGE_SIZE, &as->phys);
+    if (err == ENOMEM) {
+        return NULL;
+    }
+    panic_if(err != EOK, "Invalid errno.\n");
+
+    // If everything went right i.e. no memory shortage we can assign asid.
+    as->asid = get_next_asid();
+    return as;
 }
 
 /** Get size of given address space (in bytes). */
 size_t as_get_size(as_t* as) {
-    return 0;
+    return as->size;
 }
 
 /** Destroy given address space, freeing all the memory. */
 void as_destroy(as_t* as) {
+    errno_t err = frame_free(as->size / PAGE_SIZE, as->phys);
+    panic_if(err != EOK, "AS free frame caused errno %s", errno_as_str(err));
+
+    panic_if(free_asid_stack_top <= 0, "Kernel has run out of ASIDs.\n");
+
+    bool enable = interrupts_disable();
+    free_asid_stack[--free_asid_stack_top] = as->asid;
+    interrupts_restore(enable);
+
+    kfree(as);
 }
 
 /** Get mapping between virtual pages and physical frames.
@@ -37,8 +85,18 @@ void as_destroy(as_t* as) {
  * @param phys Where to store physical frame address the page is mapped to.
  * @return Error code.
  * @retval EOK Mapping found.
+ * @retval EINVAL Virtual address @virt is is not aligned to PAGE_SIZE.
  * @retval ENOENT Mapping does not exist.
  */
 errno_t as_get_mapping(as_t* as, uintptr_t virt, uintptr_t* phys) {
-    return ENOIMPL;
+    assert(INITIAL_VIRTUAL_ADDRESS % PAGE_SIZE == 0);
+    if (virt % PAGE_SIZE != 0) {
+        return EINVAL;
+    }
+    if (!(virt >= INITIAL_VIRTUAL_ADDRESS &&
+          virt <= INITIAL_VIRTUAL_ADDRESS + as->size)) {
+        return ENOENT;
+    }
+    *phys = as->phys + (virt - INITIAL_VIRTUAL_ADDRESS);
+    return EOK;
 }

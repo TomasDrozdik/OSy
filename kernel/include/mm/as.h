@@ -4,13 +4,20 @@
 #ifndef _MM_AS_H
 #define _MM_AS_H
 
+#include <adt/list.h>
 #include <errno.h>
 #include <types.h>
 
 #define PAGE_SIZE 4096
 
+#define ASID_COUNT 256
+
+#define INITIAL_VIRTUAL_ADDRESS PAGE_SIZE
+
 typedef struct as {
+    uint8_t asid;
     size_t size;
+    uintptr_t phys;
 } as_t;
 
 void as_init(void);
