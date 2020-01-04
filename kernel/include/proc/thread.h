@@ -8,6 +8,7 @@
 #include <errno.h>
 #include <proc/context.h>
 #include <types.h>
+#include <mm/as.h>
 
 /** Thread stack size.
  *
@@ -31,6 +32,7 @@ typedef enum thread_state {
     SUSPENDED,
     FINISHED,
     WAITING,
+    KILLED,
 } thread_state_t;
 
 /** Information about any existing thread. */
@@ -42,6 +44,7 @@ struct thread {
     void* retval;
     thread_state_t state;
     link_t link;
+    as_t* as;
 
     // Pointer to where context (i.e. stack top in terms of cpu_context_switch)
     // is stored.

@@ -6,17 +6,18 @@
 #include <exc.h>
 #include <lib/print.h>
 #include <mm/heap.h>
+#include <mm/frame.h>
 #include <proc/context.h>
 #include <proc/scheduler.h>
 #include <proc/thread.h>
 
 /** Calculates address of initial stack top of given thread.
  *
- * @param THREADPTR Pointer to thread.
+ * @param threadptr Pointer to thread.
  * @return Address of stack top of given thread in unative_t.
  */
-#define THREAD_INITIAL_STACK_TOP(THREADPTR) \
-    ((unative_t)((uintptr_t)THREADPTR + sizeof(thread_t) + THREAD_STACK_SIZE))
+#define THREAD_INITIAL_STACK_TOP(threadptr) \
+    ((unative_t)((uintptr_t)(threadptr) + sizeof(thread_t) + THREAD_STACK_SIZE))
 
 /** Calculates pointer to initial context of given thread.
  *
@@ -25,8 +26,8 @@
  * @param THREADPTR Pointer to thread.
  * @returns Pointer to initial context_t.
  */
-#define THREAD_INITIAL_CONTEXT(THREADPTR) \
-    ((context_t*)(THREAD_INITIAL_STACK_TOP(THREADPTR) - sizeof(context_t)))
+#define THREAD_INITIAL_CONTEXT(threadptr) \
+    ((context_t*)(THREAD_INITIAL_STACK_TOP(threadptr) - sizeof(context_t)))
 
 /** Points to currently running thread_t.
  *
@@ -95,6 +96,9 @@ errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* da
     *thread_out = thread;
     scheduler_add_ready_thread(*thread_out);
 
+    // Inherit address space from currently running thread.
+    thread->as = (running_thread) ? running_thread->as : NULL;
+
     interrupts_restore(enable);
     return EOK;
 }
@@ -117,11 +121,23 @@ errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* da
  * @retval ENOMEM Not enough memory to complete the operation.
  * @retval INVAL Invalid flags (unused).
  */
-errno_t thread_create_new_as(thread_t** thread_out, thread_entry_func_t entry, void* data, unsigned int flags, const char* name, size_t as_size) {
-    if (as_size != 0) {
-        return ENOIMPL;
+errno_t thread_create_new_as(thread_t** thread_out, thread_entry_func_t entry,
+        void* data, unsigned int flags, const char* name, size_t as_size) {
+    bool enable = interrupts_disable();
+    errno_t err = thread_create(thread_out, entry, data, flags, name);
+    if (err != EOK) {
+        interrupts_restore(enable);
+        return err;
     }
-    return thread_create(thread_out, entry, data, flags, name);
+
+    (*thread_out)->as = as_create(as_size, 0);
+    if ((*thread_out)->as == NULL) {
+        kfree(*thread_out);
+        interrupts_restore(enable);
+        return ENOMEM;
+    }
+    interrupts_restore(enable);
+    return EOK;
 }
 
 /** Return information about currently executing thread.
@@ -161,18 +177,18 @@ void thread_finish(void* retval) {
     interrupts_disable();
 
     running_thread->state = FINISHED;
-
     running_thread->retval = retval;
+    if (running_thread->as) {
+        as_destroy(running_thread->as);
+    }
 
     assert(running_thread == scheduler_get_scheduled_thread());
     scheduler_remove_thread(running_thread);
-
     scheduler_schedule_next();
 
     // Noreturn function
-    while (1) {
-        printk("error");
-    }
+    panic_if(true, "Reached noreturn path.\n");
+    while (1);
 }
 
 /** Tells if thread already called thread_finish() or returned from the entry
@@ -222,17 +238,17 @@ errno_t thread_join(thread_t* thread, void** retval) {
         interrupts_restore(enable);
         return EINVAL;
     }
-
-    while (thread->state != FINISHED) {
+    while (!(thread->state == FINISHED || thread->state == KILLED)) {
         thread_yield();
     }
-
+    if (thread->state == KILLED) {
+        return EKILLED;
+    }
     if (retval) {
         *retval = thread->retval;
     }
 
     interrupts_restore(enable);
-
     return EOK;
 }
 
@@ -250,13 +266,11 @@ void thread_switch_to(thread_t* thread) {
     if (running_thread == NULL) {
         stack_top_old = (void**)debug_get_stack_pointer();
     } else {
-        stack_top_old = (void**)&thread_get_current()->context;
+        stack_top_old = (void**)&running_thread->context;
     }
 
     void** stack_top_new = (void**)&thread->context;
-
     running_thread = scheduler_get_scheduled_thread();
-
     cpu_switch_context(stack_top_old, stack_top_new, 1);
 
     interrupts_restore(enable);
@@ -264,7 +278,7 @@ void thread_switch_to(thread_t* thread) {
 
 /** Get address space of given thread. */
 as_t* thread_get_as(thread_t* thread) {
-    return NULL;
+    return thread->as;
 }
 
 /** Kills given thread.
@@ -281,7 +295,24 @@ as_t* thread_get_as(thread_t* thread) {
  * @retval EEXITED Thread already finished its execution.
  */
 errno_t thread_kill(thread_t* thread) {
-    return ENOIMPL;
+    bool enable = interrupts_disable();
+
+    thread->state = KILLED;
+    if (thread->as) {
+        as_destroy(thread->as);
+    }
+    scheduler_remove_thread(thread);
+    if (thread == running_thread) {
+        dprintk("Replacing current runngin thread.\n");
+        scheduler_schedule_next();
+
+        // Noreturn path
+        panic_if(true, "Reached noreturn path.\n");
+        while (1);
+    }
+
+    interrupts_restore(enable);
+    return EOK;
 }
 
 static void thread_entry_func_wrapper() {
