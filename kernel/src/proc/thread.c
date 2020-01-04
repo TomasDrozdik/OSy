@@ -99,6 +99,10 @@ errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* da
     // Inherit address space from currently running thread.
     thread->as = (running_thread) ? running_thread->as : NULL;
 
+    // FIXME
+    printk("REMOVE THIS PRINT AND EXCEPTION 5 IS THROWN\n");
+    ++thread->as->reference_counter;
+
     interrupts_restore(enable);
     return EOK;
 }
@@ -178,7 +182,7 @@ void thread_finish(void* retval) {
 
     running_thread->state = FINISHED;
     running_thread->retval = retval;
-    if (running_thread->as) {
+    if (running_thread->as != NULL) {
         as_destroy(running_thread->as);
     }
 
@@ -298,7 +302,7 @@ errno_t thread_kill(thread_t* thread) {
     bool enable = interrupts_disable();
 
     thread->state = KILLED;
-    if (thread->as) {
+    if (thread->as != NULL) {
         as_destroy(thread->as);
     }
     scheduler_remove_thread(thread);

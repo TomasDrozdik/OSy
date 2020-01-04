@@ -7,6 +7,7 @@
 #include <mm/frame.h>
 #include <utils.h>
 
+/** Stack of free ASIDs. */
 static size_t free_asid_stack_top;
 static uint8_t free_asid_stack[ASID_COUNT];
 
@@ -28,7 +29,8 @@ void as_init(void) {
 static inline uint8_t get_next_asid() {
     // Work with static global data -> prevent races.
     bool enable = interrupts_disable();
-    panic_if(free_asid_stack_top >= ASID_COUNT, "Asid space is used up.");
+    panic_if(free_asid_stack_top >= ASID_COUNT,
+            "Kernel has run out of ASIDs.\n");
     uint8_t asid = free_asid_stack[free_asid_stack_top++];
     interrupts_restore(enable);
     return asid;
@@ -48,6 +50,7 @@ as_t* as_create(size_t size, unsigned int flags) {
         return NULL;
     }
     as->size = size;
+    as->reference_counter = 1;
     errno_t err = frame_alloc(as->size / PAGE_SIZE, &as->phys);
     if (err == ENOMEM) {
         return NULL;
@@ -66,10 +69,14 @@ size_t as_get_size(as_t* as) {
 
 /** Destroy given address space, freeing all the memory. */
 void as_destroy(as_t* as) {
+    assert(as->reference_counter > 0);
+    if (--as->reference_counter != 0) {
+        return;
+    }
     errno_t err = frame_free(as->size / PAGE_SIZE, as->phys);
     panic_if(err != EOK, "AS free frame caused errno %s", errno_as_str(err));
 
-    panic_if(free_asid_stack_top <= 0, "Kernel has run out of ASIDs.\n");
+    panic_if(free_asid_stack_top == 0, "Invalid ASID stack state.\n");
 
     bool enable = interrupts_disable();
     free_asid_stack[--free_asid_stack_top] = as->asid;

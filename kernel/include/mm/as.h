@@ -18,6 +18,7 @@ typedef struct as {
     uint8_t asid;
     size_t size;
     uintptr_t phys;
+    size_t reference_counter;
 } as_t;
 
 void as_init(void);

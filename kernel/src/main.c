@@ -16,8 +16,6 @@ static void* init_thread(void* ignored) {
     kernel_test();
 #else
     printk("%s: Hello, World!\n\n", thread_get_current()->name);
-    debug_print_heap();
-    debug_print_paging();
 #endif
     printk("\nHalt.\n");
     machine_halt();
