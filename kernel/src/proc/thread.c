@@ -93,15 +93,15 @@ errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* da
     thread->context->ra = (unative_t)&thread_entry_func_wrapper;
     thread->context->status = 0xff01;
 
-    *thread_out = thread;
-    scheduler_add_ready_thread(*thread_out);
-
     // Inherit address space from currently running thread.
     thread->as = (running_thread) ? running_thread->as : NULL;
 
     // FIXME
     printk("REMOVE THIS PRINT AND EXCEPTION 5 IS THROWN\n");
     ++thread->as->reference_counter;
+
+    scheduler_add_ready_thread(thread);
+    *thread_out = thread;
 
     interrupts_restore(enable);
     return EOK;

@@ -69,8 +69,8 @@ size_t as_get_size(as_t* as) {
 
 /** Destroy given address space, freeing all the memory. */
 void as_destroy(as_t* as) {
-    assert(as->reference_counter > 0);
-    if (--as->reference_counter != 0) {
+    panic_if(as->reference_counter == 0, "Invalid value of reference counter.\n");
+    if (--as->reference_counter > 0) {
         return;
     }
     errno_t err = frame_free(as->size / PAGE_SIZE, as->phys);
