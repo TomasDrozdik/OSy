@@ -93,12 +93,12 @@ errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* da
     thread->context->ra = (unative_t)&thread_entry_func_wrapper;
     thread->context->status = 0xff01;
 
-    // Inherit address space from currently running thread.
+        // Inherit address space from currently running thread.
     thread->as = (running_thread) ? running_thread->as : NULL;
 
-    // FIXME
-    printk("REMOVE THIS PRINT AND EXCEPTION 5 IS THROWN\n");
-    ++thread->as->reference_counter;
+    if (thread->as) {
+        ++(thread->as->reference_counter);
+    }
 
     scheduler_add_ready_thread(thread);
     *thread_out = thread;
@@ -128,12 +128,18 @@ errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* da
 errno_t thread_create_new_as(thread_t** thread_out, thread_entry_func_t entry,
         void* data, unsigned int flags, const char* name, size_t as_size) {
     bool enable = interrupts_disable();
+
+    // First we create a thread inheriting previous address space
     errno_t err = thread_create(thread_out, entry, data, flags, name);
     if (err != EOK) {
         interrupts_restore(enable);
         return err;
     }
-
+    if ((*thread_out)->as) {
+        // If there is an inherited AS than reference counter was increased so
+        // since we are creating a new AS we decrease the counter.
+        --((*thread_out)->as->reference_counter);
+    }
     (*thread_out)->as = as_create(as_size, 0);
     if ((*thread_out)->as == NULL) {
         kfree(*thread_out);
