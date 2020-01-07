@@ -8,9 +8,9 @@ DIFF = diff
 
 ### Phony targets
 
-.PHONY: all clean distclean kernel run-msim-gdb run-gdb cstyle fix-cstyle test-all
+.PHONY: all clean distclean kernel run-msim-gdb run-gdb cstyle fix-cstyle test-all full run
 
-SUITE_ALL=suite_all.txt
+SUITE_ALL=full_suite.txt
 
 
 ### Default target
@@ -27,6 +27,7 @@ distclean:
 	$(MAKE) -C kernel distclean
 	rm -f config.mk
 	rm -rf _build_kernel__*
+	@rm -f $(SUITE_ALL)
 
 run-msim-gdb:
 	msim -g $(GDB_PORT)
@@ -43,6 +44,10 @@ fix-cstyle:
 $(SUITE_ALL): suite_as1.txt suite_as2.txt suite_as3.txt suite_as4.txt suite_as5.txt
 		cat $^ > $@
 
-test-all: $(SUITE_ALL)
+test: $(SUITE_ALL)
 	./tools/tester.py suite $<
 
+full: clean kernel
+
+run: kernel
+	msim
