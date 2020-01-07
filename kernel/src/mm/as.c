@@ -102,8 +102,11 @@ errno_t as_get_mapping(as_t* as, uintptr_t virt, uintptr_t* phys) {
     }
     if (!(virt >= INITIAL_VIRTUAL_ADDRESS &&
           virt <= INITIAL_VIRTUAL_ADDRESS + as->size)) {
+        dprintk("Virtual address %p not in [%p, %p]\n",
+                virt, INITIAL_VIRTUAL_ADDRESS, INITIAL_VIRTUAL_ADDRESS + as->size);
         return ENOENT;
     }
     *phys = as->phys + (virt - INITIAL_VIRTUAL_ADDRESS);
+    dprintk("Mapped virtual address %p to %p.\n", virt, *phys);
     return EOK;
 }
