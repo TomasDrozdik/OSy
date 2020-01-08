@@ -281,7 +281,8 @@ void thread_switch_to(thread_t* thread) {
 
     void** stack_top_new = (void**)&thread->context;
     running_thread = scheduler_get_scheduled_thread();
-    cpu_switch_context(stack_top_old, stack_top_new, 1);
+    dprintk("Switching to new thread %pT\n", running_thread);
+    cpu_switch_context(stack_top_old, stack_top_new, running_thread->as->asid);
 
     interrupts_restore(enable);
 }

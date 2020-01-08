@@ -36,8 +36,7 @@ typedef enum thread_state {
 } thread_state_t;
 
 /** Information about any existing thread. */
-typedef struct thread thread_t;
-struct thread {
+typedef struct {
     char name[THREAD_NAME_MAX_LENGTH + 1];
     thread_entry_func_t entry_func;
     void* data;
@@ -49,7 +48,7 @@ struct thread {
     // Pointer to where context (i.e. stack top in terms of cpu_context_switch)
     // is stored.
     context_t* context;
-};
+} thread_t;
 
 void threads_init(void);
 errno_t thread_create(thread_t** thread, thread_entry_func_t entry, void* data, unsigned int flags, const char* name);
