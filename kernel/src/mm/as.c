@@ -5,11 +5,47 @@
 #include <mm/as.h>
 #include <mm/heap.h>
 #include <mm/frame.h>
+#include <mm/tlb.h>
 #include <utils.h>
+
+#define INVALID_ASID 0
+
+// Avoid invalid asid
+#define ASID_POOL_SIZE (ASID_COUNT - 1)
 
 /** Stack of free ASIDs. */
 static size_t free_asid_stack_top;
 static uint8_t free_asid_stack[ASID_COUNT];
+
+static void invalidate_tlb(uint8_t asid) {
+    const bool global = false;
+    const bool valid = false;
+    const bool dirty = true;
+    const uintptr_t vpn2 = 0;
+    const uintptr_t pfn = 0;
+
+    // TODO invalidate only records with matching asid's
+    for (size_t i = 0; i < TLB_ENTRY_COUNT; ++i) {
+        cp0_write_pagemask_4k();
+        cp0_write_entrylo0(pfn, dirty, valid, global);
+        cp0_write_entrylo1(pfn, dirty, valid, global);
+        cp0_write_entryhi(vpn2, INVALID_ASID);
+        cp0_write_index(i);
+        cp0_tlb_write_indexed();
+    }
+    dprintk("TLB invalidated!\n");
+}
+
+static inline uint8_t get_next_asid() {
+    // Work with static global data -> prevent races.
+    bool enable = interrupts_disable();
+    panic_if(free_asid_stack_top >= ASID_POOL_SIZE,
+            "Kernel has run out of ASIDs.\n");
+    uint8_t asid = free_asid_stack[free_asid_stack_top++];
+    interrupts_restore(enable);
+    assert(asid != INVALID_ASID);
+    return asid;
+}
 
 /** Initializes support for address spaces.
  *
@@ -18,24 +54,15 @@ static uint8_t free_asid_stack[ASID_COUNT];
 void as_init(void) {
     bool enable = interrupts_disable();
 
-    for (size_t i = 0; i < ASID_COUNT; ++i) {
-        free_asid_stack[i] = i;
+    for (size_t i = 0; i < ASID_POOL_SIZE; ++i) {
+        // Avoid INVALID_ASID i.e. input i + 1;
+        free_asid_stack[i] = i + 1;
     }
     free_asid_stack_top = 0;
 
     interrupts_restore(enable);
 }
 
-static inline uint8_t get_next_asid() {
-    return free_asid_stack_top++;
-    // Work with static global data -> prevent races.
-    bool enable = interrupts_disable();
-    panic_if(free_asid_stack_top >= ASID_COUNT,
-            "Kernel has run out of ASIDs.\n");
-    uint8_t asid = free_asid_stack[free_asid_stack_top++];
-    interrupts_restore(enable);
-    return asid;
-}
 
 /** Create new address space.
  *
@@ -80,7 +107,8 @@ void as_destroy(as_t* as) {
     panic_if(free_asid_stack_top == 0, "Invalid ASID stack state.\n");
 
     bool enable = interrupts_disable();
-    //free_asid_stack[--free_asid_stack_top] = as->asid;
+    invalidate_tlb(as->asid);
+    free_asid_stack[--free_asid_stack_top] = as->asid;
     interrupts_restore(enable);
 
     kfree(as);
