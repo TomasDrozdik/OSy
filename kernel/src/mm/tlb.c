@@ -6,26 +6,10 @@
 #include <proc/thread.h>
 #include <utils.h>
 
-static inline bool is_even_page(uintptr_t address) {
-    assert(address % PAGE_SIZE == 0);
-    // Get the 13th bit of address to determine parity.
-    return !((address & (1 << 12)) >> 12);
-}
+#define PAGE_MASK 0xFFFFF000
 
-static inline uintptr_t upper_address_part(uintptr_t address) {
-    uintptr_t r = address & 0xFFFFF000;
-    dprintk("Upper part of address %p is %p\n", address, r);
-    return r;
-}
-
-static inline uintptr_t convert_to_tlb_format(uintptr_t address) {
-    uintptr_t r = address >> 12;
-    dprintk("TLB format of address %p is %p\n", address, r);
-    return r;
-}
-
-static bool is_mapped(as_t* as, uintptr_t virt, uintptr_t *phys) {
-    errno_t err = as_get_mapping(as, virt, phys);
+static bool is_mapped(as_t* as, uintptr_t vpn, uintptr_t *pfn) {
+    errno_t err = as_get_mapping(as, vpn << 12, pfn);
     switch (err) {
     case EINVAL:
         panic("Tlb refill: requested virtual address not aligned to PAGE_SIZE");
@@ -33,6 +17,8 @@ static bool is_mapped(as_t* as, uintptr_t virt, uintptr_t *phys) {
     case ENOENT:
         return false;
     case EOK:
+        assert(*pfn == ((*pfn) & PAGE_MASK));
+        *pfn >>= 12;
         return true;
     default:
         panic("as_get_mapping: unknown errno");
@@ -52,49 +38,27 @@ void handle_tlb_refill(context_t* context) {
 
     // Addresses for TLB numbering corrensponds to 2 PFNs.
     // virt1 corresponds to VPN2 with virt2 following.
-    uintptr_t virt1, virt2;
-    uintptr_t phys1, phys2;
-
-    // Valid bits corresponding to PFN1 and PFN2 
+    uintptr_t vpn2;
+    uintptr_t pfn1, pfn2;
     bool valid1, valid2;
 
-    // Round it to page 
-    virt1 = upper_address_part(context->badva);
+    vpn2 = ((context->badva & PAGE_MASK) >> 12) >> 1; 
+    dprintk("Address : VPN : VPN2 - %p : %p : %p\n",
+            context->badva, (context->badva & PAGE_MASK) >> 12, vpn2);
+    valid1 = is_mapped(thread->as, vpn2 << 1, &pfn1);
+    valid2 = is_mapped(thread->as, (vpn2 << 1) + 1, &pfn2);
 
-    if (!is_mapped(thread->as, virt1, &phys1)) {
+    if (!valid1 && !valid2) {
         thread_kill(thread);
     }
-
-    // Now find mapped neighboring pages to map them to VPN2 if possible
-    // based on parity of needed address we can only check following page for
-    // even address or preceding page for odd one.
-    // Non mapped page is invalidated by valid1/2 bool.
-    if (is_even_page(virt1)) {
-        valid1 = true;
-        virt2 = virt1 + PAGE_SIZE;
-        valid2 = is_mapped(thread->as, virt2, &phys2);
-    } else {
-        virt2 = virt1;
-        phys2 = phys1;
-        valid2 = true;
-        virt1 = virt2 - PAGE_SIZE;
-        assert(is_even_page(virt1));
-        valid1 = is_mapped(thread->as, virt1, &phys1);
-    }
-
-    // Add only upper address i.e. PFNs and VPN2
-    phys1 = convert_to_tlb_format(phys1);
-    phys2 = convert_to_tlb_format(phys2);
-    virt1 = convert_to_tlb_format(virt1);
 
     const bool dirty = true;
     const bool global = false;
     cp0_write_pagemask_4k();
-    cp0_write_entrylo0(phys1, dirty, valid1, global);
-    cp0_write_entrylo1(phys2, dirty, valid2, global);
-    cp0_write_entryhi(virt1 >> 1, thread->as->asid);
+    cp0_write_entrylo0(pfn1, dirty, valid1, global);
+    cp0_write_entrylo1(pfn2, dirty, valid2, global);
+    cp0_write_entryhi(vpn2, thread->as->asid);
     cp0_tlb_write_random();
 
     dprintk("Complete!\n");
-    //while (1); // Trap in msim
 }
