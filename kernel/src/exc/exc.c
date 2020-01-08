@@ -11,9 +11,12 @@ void handle_exception_general(context_t* context) {
     unative_t exc = cp0_cause_get_exc_code(context->cause);
     bool pending = cp0_cause_is_interrupt_pending(context->cause, 7);
 
-    if (exc == 0 && pending == 1) {
+    if (exc == 0 && pending) {
         timer_interrupt_after(CYCLES);
         scheduler_schedule_next();
+    } else if (exc == 2 || exc == 3) {
+        dprintk("Exception 3 -> killing current thread.\n");
+        thread_kill(thread_get_current());
     } else {
         panic("Exception...%d, status: %x, epc: %x\n", exc, context->status, context->epc);
     }

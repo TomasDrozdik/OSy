@@ -6,9 +6,22 @@
 #include <proc/thread.h>
 #include <utils.h>
 
-static inline bool is_even_page(uintptr_t page_number) {
-    assert(page_number % PAGE_SIZE == 0);
-    return !((page_number & (1 << 12)) >> 12);
+static inline bool is_even_page(uintptr_t address) {
+    assert(address % PAGE_SIZE == 0);
+    // Get the 13th bit of address to determine parity.
+    return !((address & (1 << 12)) >> 12);
+}
+
+static inline uintptr_t upper_address_part(uintptr_t address) {
+    uintptr_t r = address & 0xFFFFF000;
+    dprintk("Upper part of address %p is %p\n", address, r);
+    return r;
+}
+
+static inline uintptr_t convert_to_tlb_format(uintptr_t address) {
+    uintptr_t r = address >> 12;
+    dprintk("TLB format of address %p is %p\n", address, r);
+    return r;
 }
 
 static bool is_mapped(as_t* as, uintptr_t virt, uintptr_t *phys) {
@@ -46,7 +59,7 @@ void handle_tlb_refill(context_t* context) {
     bool valid1, valid2;
 
     // Round it to page 
-    virt1 = round_down(context->badva, PAGE_SIZE);
+    virt1 = upper_address_part(context->badva);
 
     if (!is_mapped(thread->as, virt1, &phys1)) {
         thread_kill(thread);
@@ -69,12 +82,17 @@ void handle_tlb_refill(context_t* context) {
         valid1 = is_mapped(thread->as, virt1, &phys1);
     }
 
-    const bool dirty = false;
+    // Add only upper address i.e. PFNs and VPN2
+    phys1 = convert_to_tlb_format(phys1);
+    phys2 = convert_to_tlb_format(phys2);
+    virt1 = convert_to_tlb_format(virt1);
+
+    const bool dirty = true;
     const bool global = false;
     cp0_write_pagemask_4k();
     cp0_write_entrylo0(phys1, dirty, valid1, global);
     cp0_write_entrylo1(phys2, dirty, valid2, global);
-    cp0_write_entryhi(virt1, thread->as->asid);
+    cp0_write_entryhi(virt1 >> 1, thread->as->asid);
     cp0_tlb_write_random();
 
     dprintk("Complete!\n");
