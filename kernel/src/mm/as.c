@@ -27,6 +27,7 @@ void as_init(void) {
 }
 
 static inline uint8_t get_next_asid() {
+    return free_asid_stack_top++;
     // Work with static global data -> prevent races.
     bool enable = interrupts_disable();
     panic_if(free_asid_stack_top >= ASID_COUNT,
@@ -79,7 +80,7 @@ void as_destroy(as_t* as) {
     panic_if(free_asid_stack_top == 0, "Invalid ASID stack state.\n");
 
     bool enable = interrupts_disable();
-    free_asid_stack[--free_asid_stack_top] = as->asid;
+    //free_asid_stack[--free_asid_stack_top] = as->asid;
     interrupts_restore(enable);
 
     kfree(as);
@@ -101,9 +102,9 @@ errno_t as_get_mapping(as_t* as, uintptr_t virt, uintptr_t* phys) {
         return EINVAL;
     }
     if (!(virt >= INITIAL_VIRTUAL_ADDRESS &&
-          virt <= INITIAL_VIRTUAL_ADDRESS + as->size)) {
+          virt < as->size)) {
         dprintk("Virtual address %p not in [%p, %p]\n",
-                virt, INITIAL_VIRTUAL_ADDRESS, INITIAL_VIRTUAL_ADDRESS + as->size);
+                virt, INITIAL_VIRTUAL_ADDRESS, as->size);
         return ENOENT;
     }
     *phys = as->phys + (virt - INITIAL_VIRTUAL_ADDRESS);
