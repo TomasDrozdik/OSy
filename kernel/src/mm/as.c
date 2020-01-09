@@ -26,12 +26,14 @@ static void invalidate_tlb(uint8_t asid) {
 
     // TODO invalidate only records with matching asid's
     for (size_t i = 0; i < TLB_ENTRY_COUNT; ++i) {
-        cp0_write_pagemask_4k();
-        cp0_write_entrylo0(pfn, dirty, valid, global);
-        cp0_write_entrylo1(pfn, dirty, valid, global);
-        cp0_write_entryhi(vpn2, INVALID_ASID);
-        cp0_write_index(i);
-        cp0_tlb_write_indexed();
+        if (cp0_tlb_read_entry_asid(i) == asid) {
+            cp0_write_pagemask_4k();
+            cp0_write_entrylo0(pfn, dirty, valid, global);
+            cp0_write_entrylo1(pfn, dirty, valid, global);
+            cp0_write_entryhi(vpn2, INVALID_ASID);
+            cp0_write_index(i);
+            cp0_tlb_write_indexed();
+        }
     }
     dprintk("TLB invalidated!\n");
 }
