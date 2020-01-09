@@ -91,8 +91,7 @@ void heap_init(void) {
     // them and leave the rest to the page allocator.
     uintptr_t start;
     size_t page_count = get_page_count() / 2;
-    frame_alloc(page_count, &start);
-    start = PHYS_TO_KSEG0(start);
+    kframe_alloc(page_count, &start);
     end = start + page_count * FRAME_SIZE;
 
     block_header_t* initial_header = (block_header_t*)start;
