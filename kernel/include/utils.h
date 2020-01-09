@@ -5,7 +5,7 @@
 #define _UTILS_H
 
 /*
- * Declarations of help number funcitons.
+ * Declarations of help number functions.
  */
 
 inline size_t round_up(size_t value, size_t multiple_of) {

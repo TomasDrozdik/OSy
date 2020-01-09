@@ -10,6 +10,7 @@
 #define FRAME_SIZE 4096
 
 void frame_init(void);
+
 errno_t frame_alloc(size_t count, uintptr_t* phys);
 errno_t kframe_alloc(size_t count, uintptr_t* kseg0ptr);
 

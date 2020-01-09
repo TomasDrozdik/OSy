@@ -105,7 +105,6 @@ errno_t kframe_alloc(size_t count, uintptr_t* kseg0ptr) {
     return EOK;
 }
 
-
 /**
  * Allocate continuous sequence of physical frames.
  *
