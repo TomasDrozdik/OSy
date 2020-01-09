@@ -329,21 +329,26 @@ static void print_list(list_t* list, char buf[BUFFER_SIZE]) {
 }
 
 static void print_thread(thread_t* thread) {
-    printk("Thread[%p] %s:"
-           "\tstate: %s"
-           "\tentry_func: %p"
-           "\tdata: %p"
-           "\tcontext %p"
-           "\tsp: %p"
-           "\tra: %p",
+    printk("Thread[%p] %s with asid: %u",
             thread,
             thread->name,
-            (thread->state == READY) ? "READY" : (thread->state == SUSPENDED) ? "SUSPENDED" : "FINISHED",
-            thread->entry_func,
-            thread->data,
-            thread->context,
-            thread->context->sp,
-            thread->context->ra);
+            thread->as->asid);
+
+    //printk("Thread[%p] %s:"
+    //       "\tstate: %s"
+    //       "\tentry_func: %p"
+    //       "\tdata: %p"
+    //       "\tcontext %p"
+    //       "\tsp: %p"
+    //       "\tra: %p",
+    //        thread,
+    //        thread->name,
+    //        (thread->state == READY) ? "READY" : (thread->state == SUSPENDED) ? "SUSPENDED" : "FINISHED",
+    //        thread->entry_func,
+    //        thread->data,
+    //        thread->context,
+    //        thread->context->sp,
+    //        thread->context->ra);
 }
 
 static void uint32_to_str_impl(uint32_t n, char* buf, int order,

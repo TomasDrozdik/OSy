@@ -12,8 +12,13 @@
 #include <proc/sem.h>
 #include <proc/thread.h>
 
+#include <mm/heap.h>
+#include <mm/frame.h>
+
 #define LOOPS 100
-#define BASE_COUNT 15
+// Changed this to 5 since using half of the memory for paging caused ENOMEM.
+// #define BASE_COUNT 15
+#define BASE_COUNT 5
 #define QUEUE_SIZE (BASE_COUNT * 2)
 #define TOTAL_THREAD_COUNT (6 * BASE_COUNT)
 
@@ -75,9 +80,12 @@ static void* worker_consumer(void* ignored) {
 
 static void spawn_workers(size_t producers, size_t consumers) {
     printk("Will spawn %u producers and %u consumers ...\n", producers, consumers);
+
+
     while (producers > 0) {
         ktest_assert(producer_thread_count < TOTAL_THREAD_COUNT, "too many producers created");
         errno_t err = thread_create(&producer_threads[producer_thread_count], worker_producer, NULL, 0, "producer");
+
         ktest_assert_errno(err, "thread_create(producer)");
         producers--;
         producer_thread_count++;

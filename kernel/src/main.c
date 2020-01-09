@@ -5,6 +5,8 @@
 #include <ktest.h>
 #include <lib/print.h>
 #include <main.h>
+#include <mm/as.h>
+#include <mm/frame.h>
 #include <mm/heap.h>
 #include <proc/scheduler.h>
 #include <proc/thread.h>
@@ -13,7 +15,7 @@ static void* init_thread(void* ignored) {
 #ifdef KERNEL_TEST
     kernel_test();
 #else
-    printk("%s: Hello, World!\n", thread_get_current()->name);
+    printk("%s: Hello, World!\n\n", thread_get_current()->name);
 #endif
     printk("\nHalt.\n");
     machine_halt();
@@ -31,12 +33,14 @@ static void* init_thread(void* ignored) {
  * that test and terminate.
  */
 void kernel_main(void) {
+    frame_init();
     heap_init();
+    as_init();
     scheduler_init();
     threads_init();
 
     thread_t* main_thread;
-    errno_t err = thread_create(&main_thread, init_thread, NULL, 0, "[INIT]");
+    errno_t err = thread_create_new_as(&main_thread, init_thread, NULL, 0, "[INIT]", 0);
     panic_if(err != EOK, "init thread creation failed (%d: %s)", err, errno_as_str(err));
 
     // Switch to the first thread.

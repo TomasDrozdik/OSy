@@ -86,7 +86,7 @@ void scheduler_add_ready_thread(thread_t* thread) {
 void scheduler_remove_thread(thread_t* thread) {
     bool enable = interrupts_disable();
 
-    assert(thread->state == FINISHED);
+    assert(thread->state == FINISHED || thread->state == KILLED);
     if (thread == scheduled_thread) {
         pick_next_scheduled_thread();
         panic_if(scheduled_thread == thread, "Removing last thread.");

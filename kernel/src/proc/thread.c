@@ -6,17 +6,18 @@
 #include <exc.h>
 #include <lib/print.h>
 #include <mm/heap.h>
+#include <mm/frame.h>
 #include <proc/context.h>
 #include <proc/scheduler.h>
 #include <proc/thread.h>
 
 /** Calculates address of initial stack top of given thread.
  *
- * @param THREADPTR Pointer to thread.
+ * @param threadptr Pointer to thread.
  * @return Address of stack top of given thread in unative_t.
  */
-#define THREAD_INITIAL_STACK_TOP(THREADPTR) \
-    ((unative_t)((uintptr_t)THREADPTR + sizeof(thread_t) + THREAD_STACK_SIZE))
+#define THREAD_INITIAL_STACK_TOP(threadptr) \
+    ((unative_t)((uintptr_t)(threadptr) + sizeof(thread_t) + THREAD_STACK_SIZE))
 
 /** Calculates pointer to initial context of given thread.
  *
@@ -25,8 +26,8 @@
  * @param THREADPTR Pointer to thread.
  * @returns Pointer to initial context_t.
  */
-#define THREAD_INITIAL_CONTEXT(THREADPTR) \
-    ((context_t*)(THREAD_INITIAL_STACK_TOP(THREADPTR) - sizeof(context_t)))
+#define THREAD_INITIAL_CONTEXT(threadptr) \
+    ((context_t*)(THREAD_INITIAL_STACK_TOP(threadptr) - sizeof(context_t)))
 
 /** Points to currently running thread_t.
  *
@@ -56,6 +57,8 @@ void threads_init(void) {
  *
  * WARNIGN: Caller is responsible for freeing this pointer after the thread
  *          finishes and caller has dealt with return value if need be.
+ *
+ * This thread will use the same address space as the current one.
  *
  * @param thread_out Where to place the initialized thread_t structure.
  * @param entry Thread entry function.
@@ -90,9 +93,59 @@ errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* da
     thread->context->ra = (unative_t)&thread_entry_func_wrapper;
     thread->context->status = 0xff01;
 
-    *thread_out = thread;
-    scheduler_add_ready_thread(*thread_out);
+        // Inherit address space from currently running thread.
+    thread->as = (running_thread) ? running_thread->as : NULL;
 
+    if (thread->as) {
+        ++(thread->as->reference_counter);
+    }
+
+    scheduler_add_ready_thread(thread);
+    *thread_out = thread;
+
+    interrupts_restore(enable);
+    return EOK;
+}
+
+/** Create a new thread with new address space.
+ *
+ * The thread is automatically placed into the queue of ready threads.
+ *
+ * This function allocates space for both stack and the thread_t structure
+ * (hence the double <code>**</code> in <code>thread_out</code>.
+ *
+ * @param thread_out Where to place the initialized thread_t structure.
+ * @param entry Thread entry function.
+ * @param data Data for the entry function.
+ * @param flags Flags (unused).
+ * @param name Thread name (for debugging purposes).
+ * @param as_size Address space size, aligned at page size (0 is correct though not very useful).
+ * @return Error code.
+ * @retval EOK Thread was created and started (added to ready queue).
+ * @retval ENOMEM Not enough memory to complete the operation.
+ * @retval INVAL Invalid flags (unused).
+ */
+errno_t thread_create_new_as(thread_t** thread_out, thread_entry_func_t entry,
+        void* data, unsigned int flags, const char* name, size_t as_size) {
+    bool enable = interrupts_disable();
+
+    // First we create a thread inheriting previous address space
+    errno_t err = thread_create(thread_out, entry, data, flags, name);
+    if (err != EOK) {
+        interrupts_restore(enable);
+        return err;
+    }
+    if ((*thread_out)->as) {
+        // If there is an inherited AS than reference counter was increased so
+        // since we are creating a new AS we decrease the counter.
+        --((*thread_out)->as->reference_counter);
+    }
+    (*thread_out)->as = as_create(as_size, 0);
+    if ((*thread_out)->as == NULL) {
+        kfree(*thread_out);
+        interrupts_restore(enable);
+        return ENOMEM;
+    }
     interrupts_restore(enable);
     return EOK;
 }
@@ -134,18 +187,18 @@ void thread_finish(void* retval) {
     interrupts_disable();
 
     running_thread->state = FINISHED;
-
     running_thread->retval = retval;
+    if (running_thread->as != NULL) {
+        as_destroy(running_thread->as);
+    }
 
     assert(running_thread == scheduler_get_scheduled_thread());
     scheduler_remove_thread(running_thread);
-
     scheduler_schedule_next();
 
     // Noreturn function
-    while (1) {
-        printk("error");
-    }
+    panic_if(true, "Reached noreturn path.\n");
+    while (1);
 }
 
 /** Tells if thread already called thread_finish() or returned from the entry
@@ -185,6 +238,7 @@ errno_t thread_wakeup(thread_t* thread) {
  * @return Error code.
  * @retval EOK Thread was joined.
  * @retval EBUSY Some other thread is already joining this one.
+ * @retval EKILLED Thread was killed.
  * @retval EINVAL Invalid thread.
  */
 errno_t thread_join(thread_t* thread, void** retval) {
@@ -194,17 +248,17 @@ errno_t thread_join(thread_t* thread, void** retval) {
         interrupts_restore(enable);
         return EINVAL;
     }
-
-    while (thread->state != FINISHED) {
+    while (!(thread->state == FINISHED || thread->state == KILLED)) {
         thread_yield();
     }
-
+    if (thread->state == KILLED) {
+        return EKILLED;
+    }
     if (retval) {
         *retval = thread->retval;
     }
 
     interrupts_restore(enable);
-
     return EOK;
 }
 
@@ -222,16 +276,54 @@ void thread_switch_to(thread_t* thread) {
     if (running_thread == NULL) {
         stack_top_old = (void**)debug_get_stack_pointer();
     } else {
-        stack_top_old = (void**)&thread_get_current()->context;
+        stack_top_old = (void**)&running_thread->context;
     }
 
     void** stack_top_new = (void**)&thread->context;
-
     running_thread = scheduler_get_scheduled_thread();
-
-    cpu_switch_context(stack_top_old, stack_top_new, 1);
+    dprintk("Switching to new thread %pT\n", running_thread);
+    cpu_switch_context(stack_top_old, stack_top_new, running_thread->as->asid);
 
     interrupts_restore(enable);
+}
+
+/** Get address space of given thread. */
+as_t* thread_get_as(thread_t* thread) {
+    return thread->as;
+}
+
+/** Kills given thread.
+ *
+ * Note that this function shall work for any existing thread, including
+ * currently running one.
+ *
+ * Joining a killed thread results in EKILLED return value from thread_join.
+ *
+ * @param thread Thread to kill.
+ * @return Error code.
+ * @retval EOK Thread was killed.
+ * @retval EINVAL Invalid thread.
+ * @retval EEXITED Thread already finished its execution.
+ */
+errno_t thread_kill(thread_t* thread) {
+    bool enable = interrupts_disable();
+
+    thread->state = KILLED;
+    if (thread->as != NULL) {
+        as_destroy(thread->as);
+    }
+    scheduler_remove_thread(thread);
+    if (thread == running_thread) {
+        dprintk("Replacing current runngin thread.\n");
+        scheduler_schedule_next();
+
+        // Noreturn path
+        panic_if(true, "Reached noreturn path.\n");
+        while (1);
+    }
+
+    interrupts_restore(enable);
+    return EOK;
 }
 
 static void thread_entry_func_wrapper() {

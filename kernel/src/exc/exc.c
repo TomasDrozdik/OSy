@@ -7,14 +7,26 @@
 #include <lib/print.h>
 #include <proc/scheduler.h>
 
+/* General exception code value mnomonics. */
+#define Int   0  /* Interrupt. */
+#define TLBL  2  /* TLB exception (load or instruction fetch). */
+#define TLBS  3  /* TLB exception (store). */
+
 void handle_exception_general(context_t* context) {
     unative_t exc = cp0_cause_get_exc_code(context->cause);
-    bool pending = cp0_cause_is_interrupt_pending(context->cause, 7);
-
-    if (exc == 0 && pending == 1) {
-        timer_interrupt_after(CYCLES);
-        scheduler_schedule_next();
-    } else {
+    switch (exc) {
+    case Int:
+        if (cp0_cause_is_interrupt_pending(context->cause, 7)) {
+            timer_interrupt_after(CYCLES);
+            scheduler_schedule_next();
+        }
+        return;
+    case TLBL:
+    case TLBS:
+        dprintk("TLBL / TLBS exception -> killing current thread.\n");
+        thread_kill(thread_get_current());
+        return;
+    default:
         panic("Exception...%d, status: %x, epc: %x\n", exc, context->status, context->epc);
     }
 }
