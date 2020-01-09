@@ -10,6 +10,7 @@
 #include <proc/context.h>
 #include <proc/scheduler.h>
 #include <proc/thread.h>
+#include <utils.h>
 
 /** Calculates address of initial stack top of given thread.
  *
@@ -17,7 +18,7 @@
  * @return Address of stack top of given thread in unative_t.
  */
 #define THREAD_INITIAL_STACK_TOP(threadptr) \
-    ((unative_t)((uintptr_t)(threadptr) + sizeof(thread_t) + THREAD_STACK_SIZE))
+    ((unative_t)((threadptr)->stack + THREAD_STACK_SIZE))
 
 /** Calculates pointer to initial context of given thread.
  *
@@ -73,12 +74,22 @@ void threads_init(void) {
 errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* data, unsigned int flags, const char* name) {
     bool enable = interrupts_disable();
 
-    // Allocate enought memory for stack and thread_t structure.
-    // No heap is available.
-    thread_t* thread = (thread_t*)kmalloc(sizeof(thread_t) + THREAD_STACK_SIZE);
+    // Allocate enought memory thread_t structure.
+    thread_t* thread = (thread_t*)kmalloc(sizeof(thread_t));
     if (thread == NULL) {
         interrupts_restore(enable);
         return ENOMEM;
+    }
+
+    // Allocate memory for thread_stack
+    errno_t err = kframe_alloc(
+            round_up(THREAD_STACK_SIZE, PAGE_SIZE) / PAGE_SIZE,
+            &thread->stack);
+    if (err != EOK) {
+        // First cleanup.
+        kfree(thread);
+        assert(err == ENOMEM);
+        return err;
     }
 
     // Set up thread_t structure.
@@ -95,7 +106,6 @@ errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* da
 
     // Inherit address space from currently running thread.
     thread->as = (running_thread) ? running_thread->as : NULL;
-
     if (thread->as) {
         ++(thread->as->reference_counter);
     }

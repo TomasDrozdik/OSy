@@ -39,6 +39,7 @@ void kernel_main(void) {
     scheduler_init();
     threads_init();
 
+
     thread_t* main_thread;
     errno_t err = thread_create_new_as(&main_thread, init_thread, NULL, 0, "[INIT]", 0);
     panic_if(err != EOK, "init thread creation failed (%d: %s)", err, errno_as_str(err));

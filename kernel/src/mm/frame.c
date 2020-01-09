@@ -9,6 +9,14 @@
 #include <types.h>
 #include <utils.h>
 
+#define KSEG0_BASE 0x80000000
+
+#define KSEG0_TO_PHYS(kseg0_addr) \
+    ((kseg0_addr)-KSEG0_BASE)
+
+#define PHYS_TO_KSEG0(phys_addr) \
+    ((phys_addr) + KSEG0_BASE)
+
 #define GET_ADDRESS(idx) \
     (page_start + (idx)*FRAME_SIZE)
 
@@ -71,12 +79,13 @@ void frame_init(void) {
  * and vice versa.
  *
  * @param count How many frames to allocate.
- * @param phys Where to store physical address of the first frame in sequence.
+ * @param kseg0ptr Where to store virtual address (from kseg0) of the first frame
+ *             in sequence.
  * @return Error code.
  * @retval EOK Frames allocated.
  * @retval ENOMEM Not enough memory.
  */
-errno_t frame_alloc(size_t count, uintptr_t* phys) {
+errno_t kframe_alloc(size_t count, uintptr_t* kseg0ptr) {
     bool enable = interrupts_disable();
     size_t idx;
     errno_t err = bitmap_find_range(&bitmap, count, false, &idx);
@@ -90,7 +99,60 @@ errno_t frame_alloc(size_t count, uintptr_t* phys) {
         assert(false);
     }
     bitmap_fill_range(&bitmap, idx, count);
-    *phys = KSEG0_TO_PHYS(GET_ADDRESS(idx));
+    *kseg0ptr = GET_ADDRESS(idx);
+
+    interrupts_restore(enable);
+    return EOK;
+}
+
+/**
+ * Allocate continuous sequence of physical frames.
+ *
+ * The allocated frames can be returned by frame_free. Note that multiple
+ * frames allocated by this function can be returned separate by frame_free
+ * and vice versa.
+ *
+ * @param count How many frames to allocate.
+ * @param phys Where to store physical address of the first frame in sequence.
+ * @return Error code.
+ * @retval EOK Frames allocated.
+ * @retval ENOMEM Not enough memory.
+ */
+errno_t frame_alloc(size_t count, uintptr_t* phys) {
+    errno_t err = kframe_alloc(count, phys);   
+    if (err != EOK) {
+        return err;
+    }
+    *phys = KSEG0_TO_PHYS(*phys);
+    return EOK;
+}
+/**
+ * Free continuous sequence of frames from kseg0 address.
+ *
+ * The returned frames were previously allocated by frame_alloc. Note that
+ * multiple frames allocated by separate calls to frame_alloc can be freed
+ * at once by this function and vice versa.
+ *
+ * @param count How many frames to free.
+ * @param kseg0ptr Physical address of the first frame in sequence.
+ * @return Error code.
+ * @retval EOK Frames freed.
+ * @retval ENOENT Invalid frame address or invalid count.
+ * @retval EBUSY Some frames were not allocated (double free).
+ */
+errno_t kframe_free(size_t count, uintptr_t kseg0ptr) {
+    bool enable = interrupts_disable();
+    if (kseg0ptr % FRAME_SIZE != 0 ||
+            !(kseg0ptr >= page_start && kseg0ptr <= end) ||
+            !(kseg0ptr + count * FRAME_SIZE <= end)) {
+        return ENOENT;
+    }
+    size_t idx = GET_INDEX(kseg0ptr);
+    if (!bitmap_check_range_is(&bitmap, idx, count, true)) {
+        interrupts_restore(enable);
+        return EBUSY;
+    }
+    bitmap_clear_range(&bitmap, idx, count);
 
     interrupts_restore(enable);
     return EOK;
@@ -111,20 +173,7 @@ errno_t frame_alloc(size_t count, uintptr_t* phys) {
  * @retval EBUSY Some frames were not allocated (double free).
  */
 errno_t frame_free(size_t count, uintptr_t phys) {
-    bool enable = interrupts_disable();
-    phys = PHYS_TO_KSEG0(phys);
-    if (phys % FRAME_SIZE != 0 || !(phys >= page_start && phys <= end) || !(phys + count * FRAME_SIZE <= end)) {
-        return ENOENT;
-    }
-    size_t idx = GET_INDEX(phys);
-    if (!bitmap_check_range_is(&bitmap, idx, count, true)) {
-        interrupts_restore(enable);
-        return EBUSY;
-    }
-    bitmap_clear_range(&bitmap, idx, count);
-
-    interrupts_restore(enable);
-    return EOK;
+    return kframe_free(count, PHYS_TO_KSEG0(phys));
 }
 
 size_t get_page_count() {

@@ -16,9 +16,7 @@
 #include <mm/heap.h>
 
 #define LOOPS 100
-// Changed this to 5 since using half of the memory for paging caused ENOMEM.
-// #define BASE_COUNT 15
-#define BASE_COUNT 5
+#define BASE_COUNT 15
 #define QUEUE_SIZE (BASE_COUNT * 2)
 #define TOTAL_THREAD_COUNT (6 * BASE_COUNT)
 
