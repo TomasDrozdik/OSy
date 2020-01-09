@@ -44,6 +44,7 @@ typedef struct {
     thread_state_t state;
     link_t link;
     as_t* as;
+    uintptr_t stack;
 
     // Pointer to where context (i.e. stack top in terms of cpu_context_switch)
     // is stored.

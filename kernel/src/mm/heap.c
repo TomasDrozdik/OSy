@@ -7,6 +7,7 @@
 #include <lib/print.h>
 #include <mm/frame.h>
 #include <mm/heap.h>
+#include <proc/thread.h>
 #include <utils.h>
 
 /** Minimal size of an allocated payload.
@@ -79,18 +80,46 @@ typedef struct block_header {
  */
 static inline void compact(link_t* prev, link_t* next);
 
+/** Attempt to make some calculation of how big the heap should be.
+ *  
+ *  Take into consideration that thread stack is allocated from frame allocator.
+ */
+static size_t count_needed_pages() {
+    const int32_t total_page_count = get_page_count();
+    const int32_t size = total_page_count * PAGE_SIZE;
+    const int32_t fitting_threads =
+            size / (sizeof(thread_t) + THREAD_STACK_SIZE);
+    size_t page_count = fitting_threads * sizeof(thread_t) / PAGE_SIZE;
+    if (page_count == 0) {
+        page_count = 1;
+    }
+    panic_if(total_page_count - page_count < page_count,
+            "Heap has more pages than paging.\n");
+    panic_if(total_page_count - page_count <= 0 || page_count <= 0,
+            "Not enough memory to run both heap and frame allocator\n"
+            "\tPage count: %u\n"
+            "\tHeap page count: %u\n"
+            "\tFrame allocator page count: %u\n",
+            total_page_count, page_count, total_page_count - page_count);
+    dprintk("Page division\n"
+            "\tPage count: %u\n"
+            "\tHeap page count: %u\n"
+            "\tFrame allocator page count: %u\n",
+            total_page_count, page_count, total_page_count - page_count);
+    return page_count;
+}
+
 void heap_init(void) {
     bool enable = interrupts_disable();
 
     list_init(&blocks);
     list_init(&free_blocks);
 
-    // Prealloc 1/2 of the pages.
+    // Prealloc precalculated ammount of pages.
     // Since our allocator requires continuous memory block we are not
-    // allocating pages dynamically but rather statically preallocate half of
-    // them and leave the rest to the page allocator.
+    // allocating pages dynamically but rather statically preallocate them.
     uintptr_t start;
-    size_t page_count = get_page_count() / 2;
+    size_t page_count = count_needed_pages();
     kframe_alloc(page_count, &start);
     end = start + page_count * FRAME_SIZE;
 
