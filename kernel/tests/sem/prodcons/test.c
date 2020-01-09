@@ -12,8 +12,8 @@
 #include <proc/sem.h>
 #include <proc/thread.h>
 
-#include <mm/heap.h>
 #include <mm/frame.h>
+#include <mm/heap.h>
 
 #define LOOPS 100
 // Changed this to 5 since using half of the memory for paging caused ENOMEM.
@@ -80,7 +80,6 @@ static void* worker_consumer(void* ignored) {
 
 static void spawn_workers(size_t producers, size_t consumers) {
     printk("Will spawn %u producers and %u consumers ...\n", producers, consumers);
-
 
     while (producers > 0) {
         ktest_assert(producer_thread_count < TOTAL_THREAD_COUNT, "too many producers created");

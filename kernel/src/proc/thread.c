@@ -5,8 +5,8 @@
 #include <debug/code.h>
 #include <exc.h>
 #include <lib/print.h>
-#include <mm/heap.h>
 #include <mm/frame.h>
+#include <mm/heap.h>
 #include <proc/context.h>
 #include <proc/scheduler.h>
 #include <proc/thread.h>
@@ -93,7 +93,7 @@ errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* da
     thread->context->ra = (unative_t)&thread_entry_func_wrapper;
     thread->context->status = 0xff01;
 
-        // Inherit address space from currently running thread.
+    // Inherit address space from currently running thread.
     thread->as = (running_thread) ? running_thread->as : NULL;
 
     if (thread->as) {
@@ -198,7 +198,8 @@ void thread_finish(void* retval) {
 
     // Noreturn function
     panic_if(true, "Reached noreturn path.\n");
-    while (1);
+    while (1)
+        ;
 }
 
 /** Tells if thread already called thread_finish() or returned from the entry
@@ -319,7 +320,8 @@ errno_t thread_kill(thread_t* thread) {
 
         // Noreturn path
         panic_if(true, "Reached noreturn path.\n");
-        while (1);
+        while (1)
+            ;
     }
 
     interrupts_restore(enable);

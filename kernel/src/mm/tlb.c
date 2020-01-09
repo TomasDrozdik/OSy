@@ -1,18 +1,27 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2019 Charles University
 
-#include <mm/tlb.h>
 #include <debug.h>
+#include <mm/tlb.h>
 #include <proc/thread.h>
 #include <utils.h>
 
 #define PAGE_MASK 0xFFFFF000
 
-static bool is_mapped(as_t* as, uintptr_t vpn, uintptr_t *pfn) {
+/* Check whether given vpn is mapped in given address space, potentionally
+ * returning corresponding pfn.
+ *
+ * @param as Address space to look in.
+ * @param vpn Virtual page number of looked for page.
+ * @param pfn Output parameter, pointer to resulting pfn.
+ * @returns True if address is mapped withing given AS and this mapping is in
+ *          corresponding pfn, false otherwise with pfn undefined.
+ */
+static bool is_mapped(as_t* as, uintptr_t vpn, uintptr_t* pfn) {
     errno_t err = as_get_mapping(as, vpn << 12, pfn);
     switch (err) {
     case EINVAL:
-        panic("Tlb refill: requested virtual address not aligned to PAGE_SIZE");
+        panic("TLB refill: requested virtual address not aligned to PAGE_SIZE");
         break;
     case ENOENT:
         return false;
@@ -31,10 +40,8 @@ void handle_tlb_refill(context_t* context) {
     thread_t* thread = thread_get_current();
     dprintk("\n\tThread %s"
             "\tASID: %u\n"
-            "\tentryhi: %p\n"
             "\tbadva: %p\n",
-            thread->name, thread->as->asid,
-            context->entryhi, context->badva);
+            thread->name, thread->as->asid, context->badva);
 
     // Addresses for TLB numbering corrensponds to 2 PFNs.
     // virt1 corresponds to VPN2 with virt2 following.
@@ -42,9 +49,7 @@ void handle_tlb_refill(context_t* context) {
     uintptr_t pfn1, pfn2;
     bool valid1, valid2;
 
-    vpn2 = ((context->badva & PAGE_MASK) >> 12) >> 1; 
-    dprintk("Address : VPN : VPN2 - %p : %p : %p\n",
-            context->badva, (context->badva & PAGE_MASK) >> 12, vpn2);
+    vpn2 = context->badva >> 13;
     valid1 = is_mapped(thread->as, vpn2 << 1, &pfn1);
     valid2 = is_mapped(thread->as, (vpn2 << 1) + 1, &pfn2);
 

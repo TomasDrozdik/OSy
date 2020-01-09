@@ -3,8 +3,8 @@
 
 #include <exc.h>
 #include <mm/as.h>
-#include <mm/heap.h>
 #include <mm/frame.h>
+#include <mm/heap.h>
 #include <mm/tlb.h>
 #include <utils.h>
 
@@ -55,14 +55,13 @@ void as_init(void) {
     bool enable = interrupts_disable();
 
     for (size_t i = 0; i < ASID_POOL_SIZE; ++i) {
-        // Avoid INVALID_ASID i.e. input i + 1;
+        // Avoid INVALID_ASID (0) i.e. input i + 1;
         free_asid_stack[i] = i + 1;
     }
     free_asid_stack_top = 0;
 
     interrupts_restore(enable);
 }
-
 
 /** Create new address space.
  *
