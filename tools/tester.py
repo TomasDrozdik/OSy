@@ -5,6 +5,7 @@
 
 
 import argparse
+import copy
 import logging
 import json
 import multiprocessing
@@ -117,23 +118,26 @@ def parse_test_config(test_descriptor):
     name = parts[0]
     extras = {
         'memory_size': None,
+        'process_vm_size': None,
     }
     for i in parts[1:]:
         if i.startswith('m'):
             extras['memory_size'] = int(i[1:])
+        elif i.startswith('u'):
+            extras['process_vm_size'] = int(i[1:])
 
     return ( name, extras )
 
-def run_kernel_test(test_descriptor, extra_arguments):
+def run_os_test(test_descriptor, extra_arguments, logger, build_dir_name):
     ( name, parameters ) = parse_test_config(test_descriptor)
-
-    logger = logging.getLogger('K/{}'.format(name))
-    build_dir = prepare_empty_build_dir('kernel/{}'.format(test_descriptor))
+    build_dir = prepare_empty_build_dir(build_dir_name)
     logger.debug('Will use build directory %s.', build_dir)
 
-    configure_args = ['--kernel-test={}'.format(name)]
+    configure_args = []
     if parameters['memory_size'] is not None:
         configure_args.append('--memory-size={}'.format(parameters['memory_size']))
+    if parameters['process_vm_size'] is not None:
+        configure_args.append('-DPROCESS_MEMORY_SIZE={}'.format(1024*parameters['process_vm_size']))
     for i in extra_arguments['configure']:
         configure_args.append(i)
 
@@ -182,8 +186,20 @@ def run_kernel_test(test_descriptor, extra_arguments):
         if not actually_panicked:
             raise TesterException('test failed (not panicked)', 'see msim.log')
 
+    shall_abort_user_app = '[ ENDS WITH APPLICATION ABORT ]' in output
+    if shall_abort_user_app:
+        actually_aborted = False
+        for line in output:
+            if 'User application forcefully terminated' in line:
+                actually_aborted = True
+                break
+        if not actually_aborted:
+            raise TesterException('test failed (user application not aborted)', 'see msim.log')
+
     test_passed = 'Test passed.' in output
-    if (shall_panic and test_passed) or (not test_passed and not shall_panic):
+    test_passed_bad = test_passed and (shall_panic or shall_abort_user_app)
+    test_failed_bad = (not test_passed) and (not (shall_panic or shall_abort_user_app))
+    if test_passed_bad or test_failed_bad:
         raise TesterException('test failed', 'see msim.log')
 
     logger.info('Checking test output ...')
@@ -198,6 +214,24 @@ def run_kernel_test(test_descriptor, extra_arguments):
 
     if exit_code != 0:
         raise TesterException('test failed', 'see report.log')
+
+def run_kernel_test(test_descriptor, extra_args_param):
+    ( name, _ ) = parse_test_config(test_descriptor)
+    extra_args = copy.deepcopy(extra_args_param)
+    extra_args['configure'].append('--kernel-test={}'.format(name))
+    run_os_test(test_descriptor,
+                extra_args,
+                logging.getLogger('K/{}'.format(name)),
+                'kernel/{}'.format(test_descriptor))
+
+def run_userspace_test(test_descriptor, extra_args_param):
+    ( name, _ ) = parse_test_config(test_descriptor)
+    extra_args = copy.deepcopy(extra_args_param)
+    extra_args['configure'].append('--userspace-test={}'.format(name))
+    run_os_test(test_descriptor,
+                extra_args,
+                logging.getLogger('U/{}'.format(name)),
+                'userspace/{}'.format(test_descriptor))
 
 def get_suite_tests(suite_filename):
     with open(suite_filename, 'r') as suite:
@@ -221,6 +255,14 @@ def run_tests(tests, extra_arguments):
             if test['type'] == 'kernel':
                 run_kernel_test(test['name'], extra_arguments)
                 report.append({
+                    'type': 'kernel',
+                    'name': test['name'],
+                    'status': 'passed'
+                })
+            elif test['type'] == 'userspace':
+                run_userspace_test(test['name'], extra_arguments)
+                report.append({
+                    'type': 'userpace',
                     'name': test['name'],
                     'status': 'passed'
                 })
@@ -230,6 +272,7 @@ def run_tests(tests, extra_arguments):
         except TesterException as exc:
             logger.error('Test %s failed: %s (%s).', test['name'], exc, exc.details)
             report.append({
+                'type': test['type'],
                 'name': test['name'],
                 'status': 'failed',
                 'message': str(exc),
@@ -253,10 +296,10 @@ def print_report(report):
     count_total = 0
     for result in report:
         if result['status'] == 'passed':
-            logger.info(' - %s passed', result['name'])
+            logger.info(' - %s %s passed', result['type'], result['name'])
             count_passed = count_passed + 1
         elif result['status'] == 'failed':
-            logger.info(' - %s FAILED (%s)', result['name'], result['message'])
+            logger.info(' - %s %s FAILED (%s)', result['type'], result['name'], result['message'])
         else:
             raise UnreachableCode()
 
@@ -301,6 +344,13 @@ def main():
                              nargs='+',
                              help='Kernel test names.')
 
+    args_userspace = args_sub.add_parser('userspace', help='Run userspace test.', parents=[common_args])
+    args_userspace.set_defaults(action='userspace')
+    args_userspace.add_argument('test_names',
+                                metavar='TEST_NAME',
+                                nargs='+',
+                                help='Userspace test names.')
+
     args_suite = args_sub.add_parser('suite', help='Run whole test suite.', parents=[common_args])
     args_suite.set_defaults(action='suite')
     args_suite.add_argument('suite_files',
@@ -337,6 +387,12 @@ def main():
         for test in config.test_names:
             tests.append({
                 'type': 'kernel',
+                'name': test
+            })
+    if config.action == 'userspace':
+        for test in config.test_names:
+            tests.append({
+                'type': 'userspace',
                 'name': test
             })
     elif config.action == 'suite':
