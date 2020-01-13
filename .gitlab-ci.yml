@@ -23,3 +23,7 @@ assignment-04:
 assignment-05:
   script:
     - ./tools/tester.py suite --verbose suite_as5.txt
+
+assignment-06:
+  script:
+    - ./tools/tester.py suite --verbose suite_as6.txt
