@@ -8,6 +8,7 @@
 #include <mm/frame.h>
 #include <mm/heap.h>
 #include <proc/thread.h>
+#include <proc/sem.h>
 #include <utils.h>
 
 /** Minimal size of an allocated payload.
@@ -89,7 +90,8 @@ static size_t count_needed_pages() {
     const int32_t size = total_page_count * PAGE_SIZE;
     const int32_t fitting_threads =
             size / (sizeof(thread_t) + THREAD_STACK_SIZE);
-    size_t page_count = fitting_threads * sizeof(thread_t) / PAGE_SIZE;
+    size_t page_count =
+            (fitting_threads * (sizeof(thread_t) + sizeof(sem_t))) / PAGE_SIZE;
     if (page_count == 0) {
         page_count = 1;
     }

@@ -8,6 +8,10 @@
 
 #define TLB_ENTRY_COUNT 48
 
+#define INVALID_ASID 0
+
 void handle_tlb_refill(context_t* context);
+
+void invalidate_tlb(uint8_t asid);
 
 #endif
