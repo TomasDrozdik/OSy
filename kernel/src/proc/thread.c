@@ -152,6 +152,7 @@ errno_t thread_create_new_as(thread_t** thread_out, thread_entry_func_t entry,
     }
     (*thread_out)->as = as_create(as_size, 0);
     if ((*thread_out)->as == NULL) {
+        // First cleanup.
         kfree(*thread_out);
         interrupts_restore(enable);
         return ENOMEM;

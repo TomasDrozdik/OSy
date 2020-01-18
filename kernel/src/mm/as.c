@@ -8,33 +8,12 @@
 #include <mm/tlb.h>
 #include <utils.h>
 
-#define INVALID_ASID 0
-
-// Avoid invalid asid
+/** Avoid invalid asid. */
 #define ASID_POOL_SIZE (ASID_COUNT - 1)
 
 /** Stack of free ASIDs. */
 static size_t free_asid_stack_top;
 static uint8_t free_asid_stack[ASID_COUNT];
-
-static void invalidate_tlb(uint8_t asid) {
-    const bool global = false;
-    const bool valid = false;
-    const bool dirty = true;
-    const uintptr_t vpn2 = 0;
-    const uintptr_t pfn = 0;
-
-    // TODO invalidate only records with matching asid's
-    for (size_t i = 0; i < TLB_ENTRY_COUNT; ++i) {
-        cp0_write_pagemask_4k();
-        cp0_write_entrylo0(pfn, dirty, valid, global);
-        cp0_write_entrylo1(pfn, dirty, valid, global);
-        cp0_write_entryhi(vpn2, INVALID_ASID);
-        cp0_write_index(i);
-        cp0_tlb_write_indexed();
-    }
-    dprintk("TLB invalidated!\n");
-}
 
 static inline uint8_t get_next_asid() {
     // Work with static global data -> prevent races.
@@ -80,6 +59,7 @@ as_t* as_create(size_t size, unsigned int flags) {
     as->reference_counter = 1;
     errno_t err = frame_alloc(as->size / PAGE_SIZE, &as->phys);
     if (err == ENOMEM) {
+        kfree(as);
         return NULL;
     }
     panic_if(err != EOK, "Invalid errno.\n");
@@ -138,3 +118,4 @@ errno_t as_get_mapping(as_t* as, uintptr_t virt, uintptr_t* phys) {
     dprintk("Mapped virtual address %p to %p.\n", virt, *phys);
     return EOK;
 }
+
