@@ -59,6 +59,7 @@ as_t* as_create(size_t size, unsigned int flags) {
     as->reference_counter = 1;
     errno_t err = frame_alloc(as->size / PAGE_SIZE, &as->phys);
     if (err == ENOMEM) {
+        kfree(as);
         return NULL;
     }
     panic_if(err != EOK, "Invalid errno.\n");
