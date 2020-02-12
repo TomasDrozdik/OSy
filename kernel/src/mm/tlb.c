@@ -38,10 +38,6 @@ static bool is_mapped(as_t* as, uintptr_t vpn, uintptr_t* pfn) {
 
 void handle_tlb_refill(context_t* context) {
     thread_t* thread = thread_get_current();
-    dprintk("\n\tThread %s"
-            "\tASID: %u\n"
-            "\tbadva: %p\n",
-            thread->name, thread->as->asid, context->badva);
 
     // Addresses for TLB numbering corrensponds to 2 PFNs.
     // virt1 corresponds to VPN2 with virt2 following.
@@ -64,8 +60,6 @@ void handle_tlb_refill(context_t* context) {
     cp0_write_entrylo1(pfn2, dirty, valid2, global);
     cp0_write_entryhi(vpn2, thread->as->asid);
     cp0_tlb_write_random();
-
-    dprintk("Complete!\n");
 }
 
 void invalidate_tlb(uint8_t asid) {
@@ -85,6 +79,5 @@ void invalidate_tlb(uint8_t asid) {
             cp0_tlb_write_indexed();
         }
     }
-    dprintk("TLB invalidated!\n");
 }
 
