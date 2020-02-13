@@ -8,10 +8,12 @@
 #include <proc/userspace.h>
 #include <utils.h>
 
-#define PROCESS_STACK_SIZE (3 * 4096)
+#include <debug/code.h>
+
+#define PROCESS_STACK_SIZE (3 * PAGE_SIZE)
 
 #define PROCESS_INITIAL_STACK_TOP \
-    (INITIAL_VIRTUAL_ADDRESS + PROCESS_STACK_SIZE - 4)
+    (INITIAL_VIRTUAL_ADDRESS + PROCESS_STACK_SIZE - sizeof(unative_t))
 
 #define PROCESS_ENTRYPOINT 0x00004000
 
@@ -26,7 +28,11 @@ static void *process_load(void *process_ptr) {
     dprintk("Executing context switch to userspace.\n");
     cpu_jump_to_userspace(PROCESS_INITIAL_STACK_TOP, PROCESS_ENTRYPOINT);
 
-    // TODO: Return value form main somehow..
+    // Noreturn function. Return value from user thread is enforced by explicit
+    // exit syscall in __main which calls user main.
+    panic("Reached noreturn path.\n");
+    while (1)
+        ;
     return NULL;
 }
 
@@ -84,9 +90,15 @@ errno_t process_create(process_t** process_out, uintptr_t image_location, size_t
  * @retval EINVAL Invalid process.
  */
 errno_t process_join(process_t* process, int* exit_status) {
-    errno_t err = thread_join(process->thread, (void **)&exit_status);
+    dprintk("Waiting for process with thread %pT\n", process->thread);
+
+    void *thread_exit_code;
+    errno_t err = thread_join(process->thread, &thread_exit_code);
     switch (err) {
     case EOK:
+        // HACK: To prevent heap allocation of a single int we just pass
+        // exitcode as void* and therefore here we just cast it back to int.
+        *exit_status = (int)thread_exit_code;
         break;
     case EBUSY:
     case EKILLED:

@@ -260,6 +260,7 @@ errno_t thread_join(thread_t* thread, void** retval) {
         interrupts_restore(enable);
         return EINVAL;
     }
+
     while (!(thread->state == FINISHED || thread->state == KILLED)) {
         thread_yield();
     }
@@ -326,7 +327,6 @@ errno_t thread_kill(thread_t* thread) {
     scheduler_remove_thread(thread);
     if (thread == running_thread) {
         scheduler_schedule_next();
-
         // Noreturn path
         panic_if(true, "Reached noreturn path.\n");
         while (1)
