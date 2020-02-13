@@ -11,6 +11,7 @@
 #define Int   0  /* Interrupt. */
 #define TLBL  2  /* TLB exception (load or instruction fetch). */
 #define TLBS  3  /* TLB exception (store). */
+#define SYS   8  /* Syscall. */
 
 void handle_exception_general(context_t* context) {
     unative_t exc = cp0_cause_get_exc_code(context->cause);
@@ -25,6 +26,9 @@ void handle_exception_general(context_t* context) {
     case TLBS:
         dprintk("TLBL / TLBS exception -> killing current thread.\n");
         thread_kill(thread_get_current());
+        return;
+    case SYS:
+        handle_syscall(context);
         return;
     default:
         panic("Exception...%d, status: %x, epc: %x\n", exc, context->status, context->epc);
