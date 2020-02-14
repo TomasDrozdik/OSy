@@ -8,6 +8,12 @@
 #include <proc/thread.h>
 #include <types.h>
 
+/** Forward declaration of thread_t since process has pointer to its thread
+ * but at the same time our design relys on having pointer from thread to its
+ * process to be able to get current process from thread_get_current()
+ */
+typedef struct thread thread_t;
+
 /** Virtual address of the entry point to userspace application. */
 #define PROCESS_ENTRY_POINT 0x00004000
 
@@ -27,11 +33,13 @@
 #endif
 
 /** Information about existing process. */
-typedef struct {
+typedef struct process {
+    unative_t id;
     thread_t* thread;
     uintptr_t image_location;
     size_t image_size;
     size_t memory_size;
+    size_t total_ticks;
 } process_t;
 
 errno_t process_create(process_t** process, uintptr_t image_location, size_t image_size, size_t process_memory_size);

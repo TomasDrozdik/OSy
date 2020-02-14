@@ -12,7 +12,7 @@ static inline void syscall_exit(int exitcode) {
     // void*.
     thread_finish((void *)exitcode);
     // Noreturn call.
-    panic("Reached noreturn path.\n");
+    assert(0 && "Reached noreturn path.");
     while(1)
         ;
 }
@@ -22,10 +22,9 @@ void handle_syscall(context_t* context) {
     dprintk("Handling syscall %d\n", id);
     switch (id) {
     case SYSCALL_EXIT:
-        syscall_exit(context->a0);
-
+        syscall_exit((int)context->a0);
         // Noreturn call.
-        panic("Reached noreturn path.\n");
+        assert(0 && "Reached noreturn path.");
         while(1)
             ;
         break;
