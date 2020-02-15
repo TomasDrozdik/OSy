@@ -2,11 +2,13 @@
 // Copyright 2019 Charles University
 
 #include <errno.h>
+#include <exc.h>
 #include <mm/as.h>
 #include <mm/heap.h>
 #include <proc/process.h>
 #include <proc/userspace.h>
 #include <utils.h>
+
 
 #include <debug/code.h>
 
@@ -16,6 +18,8 @@
     (INITIAL_VIRTUAL_ADDRESS + PROCESS_STACK_SIZE - sizeof(unative_t))
 
 #define PROCESS_ENTRYPOINT 0x00004000
+
+static size_t next_process_id = 0;
 
 static void *process_load(void *process_ptr) {
     process_t *process = (process_t *)process_ptr;
@@ -30,7 +34,7 @@ static void *process_load(void *process_ptr) {
 
     // Noreturn function. Return value from user thread is enforced by explicit
     // exit syscall in __main which calls user main.
-    panic("Reached noreturn path.\n");
+    assert(0 && "Reached noreturn path.");
     while (1)
         ;
     return NULL;
@@ -58,6 +62,13 @@ errno_t process_create(process_t** process_out, uintptr_t image_location, size_t
         return ENOMEM;
     }
 
+    // Disable interrupts to avoid race condition with global variable.
+    bool enable = interrupts_disable();
+    process->id = next_process_id++;
+    interrupts_restore(enable);
+
+    process->total_ticks = 0;
+
     // Memorize these parameters for process_load function.
     process->image_location = image_location;
     process->image_size = image_size;
@@ -72,7 +83,7 @@ errno_t process_create(process_t** process_out, uintptr_t image_location, size_t
         kfree(process);
         return ENOMEM;
     default:
-        panic("Invalid execution path.");
+        assert(0 && "Unknown enum option.");
     }
 
     *process_out = process;
@@ -105,7 +116,7 @@ errno_t process_join(process_t* process, int* exit_status) {
     case EINVAL:
         return err;
     default:
-        panic("Invalid execution path.");
+        assert(0 && "Unknown enum option.");
     }
     return EOK;
 }

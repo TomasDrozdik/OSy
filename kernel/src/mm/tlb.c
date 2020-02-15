@@ -20,19 +20,22 @@
 static bool is_mapped(as_t* as, uintptr_t vpn, uintptr_t* pfn) {
     errno_t err = as_get_mapping(as, vpn << 12, pfn);
     switch (err) {
+    case EOK:
+        // pfn now contains physical address, shift-right by 12 discards page 
+        // addressing bits resulting in pfn.
+        assert(*pfn == ((*pfn) & PAGE_MASK));
+        *pfn >>= 12;
+        return true;
     case EINVAL:
         panic("TLB refill: requested virtual address not aligned to PAGE_SIZE");
         break;
     case ENOENT:
         return false;
-    case EOK:
-        assert(*pfn == ((*pfn) & PAGE_MASK));
-        *pfn >>= 12;
-        return true;
     default:
-        panic("as_get_mapping: unknown errno");
+        assert(0 && "as_get_mapping: unknown errno");
     }
-    panic("Invalid code path.");
+
+    assert(0 && "Invalid code path.");
     return false;
 }
 
