@@ -18,6 +18,10 @@ typedef uint32_t unative_t;
 typedef uint32_t uintptr_t;
 typedef uint32_t off_t;
 
+#define bool _Bool
+#define false 0
+#define true 1
+
 #define _CHECK_TYPE_SIZE(type, expected_size) \
     _Static_assert(sizeof(type) == expected_size, #type " should be " #expected_size "B")
 

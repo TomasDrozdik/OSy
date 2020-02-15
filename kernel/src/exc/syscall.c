@@ -5,6 +5,7 @@
 #include <exc.h>
 #include <lib/print.h>
 #include <proc/thread.h>
+#include <drivers/printer.h>
 
 static inline void syscall_exit(int exitcode) {
     dprintk("exit code: %d\n", exitcode);
@@ -15,6 +16,19 @@ static inline void syscall_exit(int exitcode) {
     panic("Reached noreturn path.\n");
     while(1)
         ;
+}
+
+static inline unative_t syscall_write(const char* s) {
+    dprintk("Writing to standard output\n");
+	
+	int counter = 0;
+	while (*s != '\0') {
+		counter++;
+        printer_putchar(*s);
+        s++;
+	}
+
+	return counter;
 }
 
 void handle_syscall(context_t* context) {
@@ -29,6 +43,10 @@ void handle_syscall(context_t* context) {
         while(1)
             ;
         break;
+    case SYSCALL_WRITE:
+        context->v0=syscall_write((char*)context->a0);
+
+		break;
     default:
         panic("Invalid syscall: %d.\n", id);
     }
