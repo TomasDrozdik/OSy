@@ -20,6 +20,9 @@
  * @return Whether the call was successful.
  */
 bool np_proc_info_get(np_proc_info_t* info) {
+    if ((unative_t)info+sizeof(info) > (unative_t)_app_end) {
+        return false;
+	}
     unative_t err=__SYSCALL1(SYSCALL_INFO, (unative_t)info);
     if (err == SYSCALL_INFO) {
         return false;

@@ -24,10 +24,14 @@ static size_t next_process_id = 0;
 static void *process_load(void *process_ptr) {
     process_t *process = (process_t *)process_ptr;
 
+	//We switched to the correct thread, now we can assign it to the proccess.
+    thread_assign_to_process(process);
+
     // First copy the binary executable image to assigned virtual memory.
     memcpy(PROCESS_ENTRYPOINT, process->image_location + PROCESS_ENTRYPOINT,
             process->image_size - PROCESS_ENTRYPOINT);
 
+	
     // Now switch context to userspace thread.
     dprintk("Executing context switch to userspace.\n");
     cpu_jump_to_userspace(PROCESS_INITIAL_STACK_TOP, PROCESS_ENTRYPOINT);
@@ -75,7 +79,7 @@ errno_t process_create(process_t** process_out, uintptr_t image_location, size_t
     process->memory_size = process_memory_size;
 
     errno_t err = thread_create_new_as(&process->thread, process_load,
-            (void *)process, 0, "UAPP", process_memory_size);
+            (void *)process, 1, "UAPP", process_memory_size);
     switch (err) {
     case EOK:
         break;

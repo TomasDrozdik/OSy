@@ -38,17 +38,18 @@ static inline unative_t syscall_write(const char* s) {
 }
 
 static inline unative_t syscall_get_info(np_proc_info_t* info) {
-    dprintk("Getting info from thread.\n");
-    process_t* process = thread_get_current()->process;
-	
+    //dprintk("Getting info from thread.\n");
+    thread_t* thread = thread_get_current();
+    process_t* process = thread->process;
+    
 	if (info == NULL) {
         printk("Info structure not initialized.");
 		return 3;
 	}
-
+    
     info->id = process->id;
     info->virt_mem_size = process->memory_size;
-    info->total_ticks = process->total_ticks;
+    info->total_ticks = ++process->total_ticks;
 
 	return info->id;
 }
@@ -73,7 +74,7 @@ void handle_syscall(context_t* context) {
         //dprintk("Putchar successfull.\n");
 		break;
     case SYSCALL_INFO:
-        syscall_get_info((np_proc_info_t*)context->a0);
+        context->v0=syscall_get_info((np_proc_info_t*)context->a0);
         //dprintk("Got info successfully.\n");
 		break;
     default:
