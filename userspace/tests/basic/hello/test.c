@@ -3,6 +3,7 @@
 
 #include <stddef.h>
 #include <stdio.h>
+#include <np/utest.h>
 
 int main(void) {
     utest_start("printf/uint");

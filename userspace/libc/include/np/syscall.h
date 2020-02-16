@@ -22,6 +22,7 @@
  */
 typedef enum {
     SYSCALL_EXIT,
+	SYSCALL_PUTCHAR,
     SYSCALL_WRITE,
 	SYSCALL_INFO,
     SYSCALL_LAST

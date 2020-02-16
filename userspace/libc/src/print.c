@@ -66,7 +66,7 @@ static void uint32_to_str_impl(uint32_t n, char* buf, int order,
  * @return Character written as an unsigned char cast to an int.
  */
 int putchar(int c) {
-    __SYSCALL1(SYSCALL_WRITE, c);
+    __SYSCALL1(SYSCALL_PUTCHAR, (unative_t)c);
     return (unsigned char)c;
 }
 

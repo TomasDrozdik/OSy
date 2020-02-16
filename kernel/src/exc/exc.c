@@ -29,11 +29,9 @@ void handle_exception_general(context_t* context) {
         thread_kill(thread_get_current());
         return;
     case SYS:
-        dprintk("Syscall was called.\n");
-        dprintk("SP before: %u\n", context->sp);
+        //dprintk("Syscall was called.\n");
         handle_syscall(context);
-        dprintk("Syscall successfull,returning.....\n");
-        cpu_jump_to_userspace(context->sp, context->epc);
+        //dprintk("Syscall successfull,returning.....\n");
         return;
     default:
         panic("Exception...%d, status: %x, epc: %x\n", exc, context->status, context->epc);
