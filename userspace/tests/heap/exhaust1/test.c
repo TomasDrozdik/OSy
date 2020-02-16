@@ -21,8 +21,10 @@ int main(void) {
         // Stress proper alignment a little bit ;-)
         uint8_t* ptr = malloc(allocation_size - 1);
         if (ptr == NULL) {
+            printf("Not enough space.\n");
             allocation_size = allocation_size / 2;
             if (allocation_size < MIN_SIZE) {
+                printf("Too small.\n");
                 break;
             }
             continue;

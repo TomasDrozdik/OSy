@@ -283,4 +283,23 @@ static inline link_t* list_rotate(list_t* list) {
     return item;
 }
 
+/** Adds item after selected link
+ */
+static inline void list_add(link_t* add_after, link_t* item) {
+    assert(add_after != NULL);
+    assert(item != NULL);
+    assert(link_is_connected(add_after));
+
+    link_t* add_before = add_after->next;
+
+    assert(link_is_connected(add_before));
+
+    item->prev = add_after;
+    add_after->next = item;
+
+    item->next = add_before;
+    add_before->prev = item;
+}
+
+
 #endif
