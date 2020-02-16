@@ -17,6 +17,13 @@
  */
 typedef struct process process_t;
 
+/** Declaration of np info structure from userspace for easy filling. */
+typedef struct {
+    unative_t id;
+    size_t virt_mem_size;
+    size_t total_ticks;
+} np_proc_info_t;
+
 /** Thread stack size.
  *
  * Set quite liberally as stack overflows are notoriously difficult to debug

@@ -27,8 +27,19 @@ static inline unative_t syscall_write(const char* s) {
         printer_putchar(*s);
         s++;
 	}
-
+    dprintk("Returning counter = %d\n", counter);
 	return counter;
+}
+
+static inline unative_t syscall_get_info(np_proc_info_t* info) {
+    dprintk("Getting info from thread.\n");
+    process_t* process = thread_get_current()->process;
+	
+    info->id = process->id;
+    info->virt_mem_size = process->memory_size;
+    info->total_ticks = process->total_ticks;
+
+	return info->id;
 }
 
 void handle_syscall(context_t* context) {
@@ -44,7 +55,11 @@ void handle_syscall(context_t* context) {
         break;
     case SYSCALL_WRITE:
         context->v0=syscall_write((char*)context->a0);
-
+        dprintk("Write succesfull.\n");
+		break;
+    case SYSCALL_INFO:
+        syscall_get_info((np_proc_info_t*)context->a0);
+        dprintk("Got info successfully.\n");
 		break;
     default:
         panic("Invalid syscall: %d.\n", id);
@@ -52,6 +67,7 @@ void handle_syscall(context_t* context) {
 
     // Upon sucess, shift EPC by 4 to move to the next instruction
     // (unlike e.g. TLBL, we do not want to restart it).
+    dprintk("Shifting epc.\n");
     context->epc += 4;
 }
 

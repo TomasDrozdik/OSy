@@ -6,12 +6,13 @@
 #include <exc.h>
 #include <lib/print.h>
 #include <proc/scheduler.h>
+#include <proc/userspace.h>
 
 /* General exception code value mnomonics. */
-#define Int   0  /* Interrupt. */
-#define TLBL  2  /* TLB exception (load or instruction fetch). */
-#define TLBS  3  /* TLB exception (store). */
-#define SYS   8  /* Syscall. */
+#define Int 0 /* Interrupt. */
+#define TLBL 2 /* TLB exception (load or instruction fetch). */
+#define TLBS 3 /* TLB exception (store). */
+#define SYS 8 /* Syscall. */
 
 void handle_exception_general(context_t* context) {
     unative_t exc = cp0_cause_get_exc_code(context->cause);
@@ -28,7 +29,11 @@ void handle_exception_general(context_t* context) {
         thread_kill(thread_get_current());
         return;
     case SYS:
+        dprintk("Syscall was called.\n");
+        dprintk("SP before: %u\n", context->sp);
         handle_syscall(context);
+        dprintk("Syscall successfull,returning.....\n");
+        cpu_jump_to_userspace(context->sp, context->epc);
         return;
     default:
         panic("Exception...%d, status: %x, epc: %x\n", exc, context->status, context->epc);

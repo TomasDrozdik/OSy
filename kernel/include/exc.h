@@ -11,8 +11,9 @@
  * Must be kept up-to-date with userspace list.
  */
 typedef enum {
-    SYSCALL_WRITE,
     SYSCALL_EXIT,
+    SYSCALL_WRITE,
+	SYSCALL_INFO,
     SYSCALL_LAST
 } syscall_t;
 

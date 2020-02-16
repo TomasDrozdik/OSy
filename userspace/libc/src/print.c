@@ -76,7 +76,7 @@ int putchar(int c) {
  * @return Number of printed characters.
  */
 int fputs(const char* s) {
-    int counter = __SYSCALL1(SYSCALL_WRITE, (int)s);
+    int counter = __SYSCALL1(SYSCALL_WRITE, (unative_t)s);
 
 	return counter;
 }
@@ -88,7 +88,6 @@ int fputs(const char* s) {
  */
 int puts(const char* s) {
     int counter=fputs(s);
-    printf("Printed %d characters\n", counter);
     putchar('\n');
 
 	return counter + 1;
