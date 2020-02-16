@@ -116,27 +116,14 @@ void* malloc(size_t size) {
     size = align(size, MIN_ALLOCATION_SIZE);
     size_t actual_size = size + sizeof(block_header_t);
 
-	printf("Alligned.\n");
+	//printf("Alligned.\n");
 
     list_foreach(free_blocks, block_header_t, free_link, header) {
         if (BLOCK_SIZE(header) == actual_size) {
-            printf("Found accurate size.\n");
             list_remove(&header->free_link);
             return PAYLOAD_FROM_HEADER(header);
         } else if (BLOCK_SIZE(header) >= actual_size + sizeof(block_header_t)
                         + MIN_ALLOCATION_SIZE) {
-            printf("Found bigger one.\n");
-            if ((uintptr_t)(header + sizeof(block_header_t)) > debug_get_base_memory_endptr()) {
-                printf("Header is %X\nblock is %d\nTogether is: %X\n\n", header, sizeof(block_header_t), (uintptr_t)(header + sizeof(block_header_t)));
-                printf("end pointer is %X\n", debug_get_app_endptr());
-                printf("Allocation out of app memory.\n");
-				break;
-			}
-            printf("Header is %X\nblock is %d\nTogether is: %X\n\n", header, sizeof(block_header_t),(uintptr_t)(header + sizeof(block_header_t)));
-            printf("end pointer is %X\n", debug_get_app_endptr());
-			// Create new header inside of this memory block, with new
-            // header as a free one and this one would serve as allocated
-            // block for requested size.
             block_header_t* new_header = (block_header_t*)((uintptr_t)header + actual_size);
             list_add(&header->link, &new_header->link);
             list_append(&free_blocks, &new_header->free_link);
@@ -168,7 +155,6 @@ static void heap_init(void) {
     list_init(&free_blocks);
 
 	if (!np_proc_info_get(&info)) {
-        printf("No info gotten.");
         assert(0 && "Couldn't get info from thread.");
     }
 
@@ -179,8 +165,6 @@ static void heap_init(void) {
 
     list_append(&blocks, &initial_header->link);
     list_append(&free_blocks, &initial_header->free_link);
-
-	//printf("Mem size is %u\nticks are %u\n id is %u\n", info.virt_mem_size, info.total_ticks, info.id);
 }
 
 static inline uintptr_t align(uintptr_t ptr, size_t size) {
@@ -203,7 +187,6 @@ static inline void compact(link_t* prev, link_t* next) {
 
 /** Return pointer to memory after app. */
 uintptr_t debug_get_app_endptr(void) {
-    //printf("App end is %X\n", _app_end);
     return (uintptr_t)&_app_end;
 }
 
@@ -215,12 +198,10 @@ uintptr_t debug_get_app_endptr(void) {
  * @return Amount of memory available in bytes.
  */
 size_t debug_get_base_memory_size(void) {
-    //printf("Mem size is: %u.\n",info.virt_mem_size);
     return info.virt_mem_size;
 }
 
 // TODO: implement binary search for this
 uintptr_t debug_get_base_memory_endptr(void) {
-    //printf("Get base mem endptr.\n");
-    return debug_get_app_endptr() + debug_get_base_memory_size()-1;
+    return debug_get_base_memory_size()-debug_get_app_endptr();
 }
