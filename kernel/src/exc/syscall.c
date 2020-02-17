@@ -5,7 +5,7 @@
 #include <exc.h>
 #include <lib/print.h>
 #include <proc/thread.h>
-#include <drivers/printer.h>
+#include <lib/print.h>
 
 static inline void syscall_exit(int exitcode) {
     dprintk("exit code: %d\n", exitcode);
@@ -20,32 +20,26 @@ static inline void syscall_exit(int exitcode) {
         ;
 }
 
+// TODO: remove putchar replace with correct write see `man 2 write`
 static inline void syscall_putchar(const char c) {
     //dprintk("Printing char.\n");
 
-	printer_putchar(c);
+    putchar(c);
 }
 
 static inline unative_t syscall_write(const char* s) {
     //dprintk("Writing to standard output\n");
-	
-	int counter = 0;
-	while (*s != '\0') {
-		counter++;
-        printer_putchar(*s);
-        s++;
-	}
-    //dprintk("Returning counter = %d\n", counter);
-	return counter;
+	return fputs(s);;
 }
 
 static inline unative_t syscall_get_info(np_proc_info_t* info) {
     //dprintk("Getting info from thread.\n");
+
     thread_t* thread = thread_get_current();
     process_t* process = thread->process;
     
 	if (info == NULL) {
-        printk("Info structure not initialized.");
+        dprintk("Info structure not initialized.\n");
 		return 3;
 	}
     
@@ -88,6 +82,5 @@ void handle_syscall(context_t* context) {
     // (unlike e.g. TLBL, we do not want to restart it).
     //dprintk("Shifting epc.\n");
     context->epc += 4;
-    cpu_jump_to_userspace(context->sp, context->epc);
 }
 
