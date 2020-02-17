@@ -46,7 +46,7 @@ static inline unative_t syscall_get_info(np_proc_info_t* info) {
 }
 
 errno_t handle_syscall(context_t* context) {
-    syscall_t id = (syscall_t)(context->v0);
+    syscall_t id = (syscall_t)context->v0;
     switch (id) {
     case SYSCALL_EXIT:
         syscall_exit((int)context->a0);  // Noreturn call.
@@ -67,7 +67,6 @@ errno_t handle_syscall(context_t* context) {
 
     // Upon sucess, shift EPC by 4 to move to the next instruction
     // (unlike e.g. TLBL, we do not want to restart it).
-    //dprintk("Shifting epc.\n");
     context->epc += 4;
     return EOK;
 }
