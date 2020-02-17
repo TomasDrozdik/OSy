@@ -42,6 +42,18 @@ typedef struct process {
     size_t total_ticks;
 } process_t;
 
+/** Information about running process.
+ *
+ * See syscall_np_proc_info_get for details.
+ */
+typedef struct np_proc_info {
+    unative_t id;
+    size_t virt_mem_size;
+    size_t total_ticks;
+} np_proc_info_t;
+
+
+
 errno_t process_create(process_t** process, uintptr_t image_location, size_t image_size, size_t process_memory_size);
 errno_t process_join(process_t* process, int* exit_status);
 

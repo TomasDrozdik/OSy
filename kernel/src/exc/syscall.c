@@ -9,9 +9,11 @@
 
 static inline void syscall_exit(int exitcode) {
     dprintk("exit code: %d\n", exitcode);
+
     // HACK: to prevent allocation of single int we just return exit code as
     // void*.
     thread_finish((void *)exitcode);
+
     // Noreturn call.
     assert(0 && "Reached noreturn path.");
     while(1)
@@ -60,6 +62,7 @@ void handle_syscall(context_t* context) {
     switch (id) {
     case SYSCALL_EXIT:
         syscall_exit((int)context->a0);
+
         // Noreturn call.
         assert(0 && "Reached noreturn path.");
         while(1)
@@ -85,5 +88,6 @@ void handle_syscall(context_t* context) {
     // (unlike e.g. TLBL, we do not want to restart it).
     //dprintk("Shifting epc.\n");
     context->epc += 4;
+    cpu_jump_to_userspace(context->sp, context->epc);
 }
 

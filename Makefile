@@ -30,6 +30,7 @@ distclean:
 	$(MAKE) -C kernel distclean
 	$(MAKE) -C userspace distclean
 	rm -f config.mk
+	rm -rf _build_*
 
 run-msim-gdb:
 	msim -g $(GDB_PORT)
@@ -42,3 +43,11 @@ cstyle:
 
 fix-cstyle:
 	find kernel/ userspace/ -name '*.[ch]' -exec clang-format -style=file -i {} \;
+
+test: suite_as1.txt suite_as2.txt suite_as3.txt suite_as4.txt suite_as5.txt suite_as6.txt
+	cat $^ | xargs ./tools/tester.py suite
+
+full: clean kernel
+
+run: kernel
+	msim

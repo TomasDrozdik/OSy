@@ -20,7 +20,7 @@
  *
  * Must be kept up-to-date with kernel list.
  */
-typedef enum {
+typedef enum syscall {
     SYSCALL_EXIT,
 	SYSCALL_PUTCHAR,
     SYSCALL_WRITE,

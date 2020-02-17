@@ -12,7 +12,7 @@
  *
  * See np_proc_info_get for details.
  */
-typedef struct {
+typedef struct np_proc_info {
     unative_t id;
     size_t virt_mem_size;
     size_t total_ticks;
