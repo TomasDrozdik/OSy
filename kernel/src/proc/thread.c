@@ -39,13 +39,25 @@ static thread_t* running_thread;
 
 /** Wraps the thread_entry_function so that it always calls finish.
  */
-static void thread_entry_func_wrapper(void);
+static void thread_entry_func_wrapper(void) {
+    panic_if(running_thread == NULL,
+            "thread_entry_func_wrapper: running_thread == NULL");
+    thread_finish(running_thread->entry_func(running_thread->data));
+}
 
 /** Free address space assigned to the thread also invalidate TLB for it's ASID.
  *
  * @param thread Thread to free as form.
  */
-static inline void thread_free_as(thread_t *thread);
+static inline void thread_free_as(thread_t *thread) {
+    if (thread->as) {
+        as_destroy(thread->as);
+
+        // Now as as is destroyed, asssign NULL to it so that when thread is
+        // joined this would not be called again.
+        thread->as = NULL;
+    }
+}
 
 /** Initialize support for threading.
  *
@@ -339,17 +351,10 @@ errno_t thread_kill(thread_t* thread) {
     bool enable = interrupts_disable();
 
     thread->state = KILLED;
-    // Release the address space since we will no longer access this thread's
-    // assigned space.
-    // thread_free_as(thread);
 
     scheduler_remove_thread(thread);
     if (thread == running_thread) {
-        scheduler_schedule_next();
-        // Noreturn path
-        assert(0 && "Reached noreturn path.");
-        while (1)
-            ;
+        scheduler_schedule_next();  // Noreturn path
     }
 
     interrupts_restore(enable);
@@ -365,17 +370,5 @@ void thread_assign_to_process(process_t* process) {
             "Assigning process to thread which already has a thread assigned.\n");
     running_thread->process = process;
     interrupts_restore(enable);  // End of critical section.
-}
-
-static void thread_entry_func_wrapper() {
-    panic_if(running_thread == NULL,
-            "thread_entry_func_wrapper: running_thread == NULL");
-    thread_finish(running_thread->entry_func(running_thread->data));
-}
-
-static inline void thread_free_as(thread_t *thread) {
-    if (thread->as) {
-        as_destroy(thread->as);
-    }
 }
 
