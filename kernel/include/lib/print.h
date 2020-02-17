@@ -5,19 +5,25 @@
 #define _LIB_PRINT_H
 
 #include <types.h>
+#include <drivers/printer.h>
 
 /** Type for representing base of a number.*/
 typedef uint32_t base_t;
 
+/** Wrapper around printer putchar. */
+static inline void putchar(char c) {
+    printer_putchar(c);
+}
+
 /** Prints given string to console.
  * @param s String to print.
  */
-void fputs(const char* s);
+int fputs(const char* s);
 
 /** Prints given string to console, terminating it with newline.
  * @param s String to print.
  */
-void puts(const char* s);
+int puts(const char* s);
 
 /** Prints given formatted string to console.
  * Supported printf formats: %c, %d, %u, %s, %x, %X, %p, %pL
