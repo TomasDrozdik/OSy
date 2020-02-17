@@ -4,8 +4,8 @@
 #ifndef _LIB_PRINT_H
 #define _LIB_PRINT_H
 
-#include <types.h>
 #include <drivers/printer.h>
+#include <types.h>
 
 /** Type for representing base of a number.*/
 typedef uint32_t base_t;

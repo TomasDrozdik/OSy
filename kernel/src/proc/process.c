@@ -9,7 +9,6 @@
 #include <proc/userspace.h>
 #include <utils.h>
 
-
 #include <debug/code.h>
 
 #define PROCESS_STACK_SIZE (3 * PAGE_SIZE)
@@ -22,10 +21,10 @@
 // TODO: make PID reusable
 static size_t next_process_id = 0;
 
-static void *process_load(void *process_ptr) {
-    process_t *process = (process_t *)process_ptr;
+static void* process_load(void* process_ptr) {
+    process_t* process = (process_t*)process_ptr;
 
-	// Since this is executed in userspace thread, assign the process to it.
+    // Since this is executed in userspace thread, assign the process to it.
     thread_assign_to_process(process);
 
     // First copy the binary executable image to assigned virtual memory.
@@ -56,8 +55,7 @@ static void *process_load(void *process_ptr) {
  * @retval EINVAL Invalid call (unaligned size, process memory < image size).
  */
 errno_t process_create(process_t** process_out, uintptr_t image_location, size_t image_size, size_t process_memory_size) {
-    if (process_memory_size < image_size ||
-            process_memory_size % PAGE_SIZE != 0) {
+    if (process_memory_size < image_size || process_memory_size % PAGE_SIZE != 0) {
         return EINVAL;
     }
 
@@ -79,7 +77,7 @@ errno_t process_create(process_t** process_out, uintptr_t image_location, size_t
     process->memory_size = process_memory_size;
 
     errno_t err = thread_create_new_as(&process->thread, process_load,
-            (void *)process, 1, "UAPP", process_memory_size);
+            (void*)process, 1, "UAPP", process_memory_size);
     switch (err) {
     case EOK:
         break;
@@ -107,7 +105,7 @@ errno_t process_create(process_t** process_out, uintptr_t image_location, size_t
 errno_t process_join(process_t* process, int* exit_status) {
     dprintk("Waiting for process with thread %pT\n", process->thread);
 
-    void *thread_exit_code;
+    void* thread_exit_code;
     errno_t err = thread_join(process->thread, &thread_exit_code);
     switch (err) {
     case EOK:
@@ -124,4 +122,3 @@ errno_t process_join(process_t* process, int* exit_status) {
     }
     return EOK;
 }
-

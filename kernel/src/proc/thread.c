@@ -49,7 +49,7 @@ static void thread_entry_func_wrapper(void) {
  *
  * @param thread Thread to free as form.
  */
-static inline void thread_free_as(thread_t *thread) {
+static inline void thread_free_as(thread_t* thread) {
     if (thread->as) {
         as_destroy(thread->as);
 
@@ -91,7 +91,7 @@ void threads_init(void) {
  * @retval INVAL Invalid flags (unused).
  */
 errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* data, unsigned int flags, const char* name) {
-    bool enable = interrupts_disable();  // Enter critical section.
+    bool enable = interrupts_disable(); // Enter critical section.
 
     // Allocate enought memory thread_t structure.
     thread_t* thread = (thread_t*)kmalloc(sizeof(thread_t));
@@ -354,7 +354,7 @@ errno_t thread_kill(thread_t* thread) {
 
     scheduler_remove_thread(thread);
     if (thread == running_thread) {
-        scheduler_schedule_next();  // Noreturn path
+        scheduler_schedule_next(); // Noreturn path
     }
 
     interrupts_restore(enable);
@@ -369,6 +369,5 @@ void thread_assign_to_process(process_t* process) {
     panic_if(running_thread->process != NULL,
             "Assigning process to thread which already has a thread assigned.\n");
     running_thread->process = process;
-    interrupts_restore(enable);  // End of critical section.
+    interrupts_restore(enable); // End of critical section.
 }
-

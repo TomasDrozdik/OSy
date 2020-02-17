@@ -7,8 +7,8 @@
 #include <lib/print.h>
 #include <mm/frame.h>
 #include <mm/heap.h>
-#include <proc/thread.h>
 #include <proc/sem.h>
+#include <proc/thread.h>
 #include <utils.h>
 
 /** Minimal size of an allocated payload.
@@ -48,9 +48,7 @@
  * @returns Size of a block in size_t type.
  */
 #define BLOCK_SIZE(headerptr) \
-    ((size_t)(valid_link(blocks, (headerptr)->link.next) ? \
-        (uintptr_t)(headerptr)->link.next - (uintptr_t)&(headerptr)->link : \
-        end - (uintptr_t)(headerptr)))
+    ((size_t)(valid_link(blocks, (headerptr)->link.next) ? (uintptr_t)(headerptr)->link.next - (uintptr_t) & (headerptr)->link : end - (uintptr_t)(headerptr)))
 
 /** Checks if given header is free.
  * By checking validity of free_link. This means that each free block HAS to
@@ -88,10 +86,8 @@ static inline void compact(link_t* prev, link_t* next);
 static size_t count_needed_pages() {
     const int32_t total_page_count = get_page_count();
     const int32_t size = total_page_count * PAGE_SIZE;
-    const int32_t fitting_threads =
-            size / (sizeof(thread_t) + THREAD_STACK_SIZE);
-    size_t page_count =
-            (fitting_threads * (sizeof(thread_t) + sizeof(sem_t))) / PAGE_SIZE;
+    const int32_t fitting_threads = size / (sizeof(thread_t) + THREAD_STACK_SIZE);
+    size_t page_count = (fitting_threads * (sizeof(thread_t) + sizeof(sem_t))) / PAGE_SIZE;
     if (page_count == 0) {
         page_count = 1;
     }

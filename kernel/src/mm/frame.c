@@ -56,9 +56,7 @@ void frame_init(void) {
     page_start = end - page_count * FRAME_SIZE;
 
     // Assert that both bitmap backing_field and pages fit into given space.
-    assert(start % FRAME_SIZE == 0 &&
-           page_start % FRAME_SIZE == 0 && 
-           end % FRAME_SIZE == 0);
+    assert(start % FRAME_SIZE == 0 && page_start % FRAME_SIZE == 0 && end % FRAME_SIZE == 0);
     panic_if(start + bitmap_size > page_start || page_count == 0,
             "Frame init failed to create bitmap and corresponding pages in"
             " available in addresss range [%p, %p] with corresponding"
@@ -119,7 +117,7 @@ errno_t kframe_alloc(size_t count, uintptr_t* kseg0ptr) {
  * @retval ENOMEM Not enough memory.
  */
 errno_t frame_alloc(size_t count, uintptr_t* phys) {
-    errno_t err = kframe_alloc(count, phys);   
+    errno_t err = kframe_alloc(count, phys);
     if (err != EOK) {
         return err;
     }
@@ -142,9 +140,7 @@ errno_t frame_alloc(size_t count, uintptr_t* phys) {
  */
 errno_t kframe_free(size_t count, uintptr_t kseg0ptr) {
     bool enable = interrupts_disable();
-    if (kseg0ptr % FRAME_SIZE != 0 ||
-            !(kseg0ptr >= page_start && kseg0ptr <= end) ||
-            !(kseg0ptr + count * FRAME_SIZE <= end)) {
+    if (kseg0ptr % FRAME_SIZE != 0 || !(kseg0ptr >= page_start && kseg0ptr <= end) || !(kseg0ptr + count * FRAME_SIZE <= end)) {
         return ENOENT;
     }
     size_t idx = GET_INDEX(kseg0ptr);

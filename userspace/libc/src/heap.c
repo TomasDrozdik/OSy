@@ -1,13 +1,13 @@
 // SPDX-License-Identifier: Apache-2.0
 // Copyright 2019 Charles University
 
-#include <stdlib.h>
-#include <stdbool.h>
 #include <np/list.h>
 #include <np/proc.h>
 #include <np/syscall.h>
 #include <np/types.h>
+#include <stdbool.h>
 #include <stdio.h>
+#include <stdlib.h>
 
 /** Minimal size of an allocated payload.
  *  Anything below this size is increased to it.
@@ -55,7 +55,7 @@
  * @returns Size of a block in size_t type.
  */
 #define BLOCK_SIZE(HEADERPTR) \
-	((size_t)(VALID_HEADER_LINK(HEADERPTR->link.next) ? (uintptr_t)HEADERPTR->link.next - (uintptr_t)&HEADERPTR->link : end_ptr - (uintptr_t)HEADERPTR))
+    ((size_t)(VALID_HEADER_LINK(HEADERPTR->link.next) ? (uintptr_t)HEADERPTR->link.next - (uintptr_t)&HEADERPTR->link : end_ptr - (uintptr_t)HEADERPTR))
 
 /** Checks if given header is free.
  * By checking validity of free_link. This means that each free block HAS to
@@ -106,17 +106,17 @@ static inline uintptr_t align(uintptr_t ptr, size_t size);
 static inline void compact(link_t* prev, link_t* next);
 
 void* malloc(size_t size) {
-    
+
     if (!heap_initialized) {
         heap_init();
         heap_initialized = true;
         printf("Initialized.\n");
     }
-    
+
     size = align(size, MIN_ALLOCATION_SIZE);
     size_t actual_size = size + sizeof(block_header_t);
 
-	//printf("Alligned.\n");
+    //printf("Alligned.\n");
 
     list_foreach(free_blocks, block_header_t, free_link, header) {
         if (BLOCK_SIZE(header) == actual_size) {
@@ -140,7 +140,7 @@ void* malloc(size_t size) {
 void free(void* ptr) {
     if (ptr == NULL) {
         return;
-	}
+    }
     block_header_t* header = HEADER_FROM_PAYLOAD(ptr);
     assert(!link_is_connected(&header->free_link));
 
@@ -154,7 +154,7 @@ static void heap_init(void) {
     list_init(&blocks);
     list_init(&free_blocks);
 
-	if (!np_proc_info_get(&info)) {
+    if (!np_proc_info_get(&info)) {
         assert(0 && "Couldn't get info from thread.");
     }
 
@@ -203,5 +203,5 @@ size_t debug_get_base_memory_size(void) {
 
 // TODO: implement binary search for this
 uintptr_t debug_get_base_memory_endptr(void) {
-    return debug_get_base_memory_size()-debug_get_app_endptr();
+    return debug_get_base_memory_size() - debug_get_app_endptr();
 }

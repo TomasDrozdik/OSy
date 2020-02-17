@@ -82,7 +82,7 @@ static inline uint8_t cp0_tlb_read_entry_asid(size_t index) {
     cp0_write_index(index);
     cp0_tlb_read();
     return cp0_read(10);
-} 
+}
 
 static inline void cp0_tlb_read_entry_4k_page(size_t index, unative_t* vp_entry, unative_t* pf_entry_even, unative_t* pf_entry_odd) {
     cp0_write_index(index);

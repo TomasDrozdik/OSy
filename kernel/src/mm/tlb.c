@@ -21,7 +21,7 @@ static bool is_mapped(as_t* as, uintptr_t vpn, uintptr_t* pfn) {
     errno_t err = as_get_mapping(as, vpn << 12, pfn);
     switch (err) {
     case EOK:
-        // pfn now contains physical address, shift-right by 12 discards page 
+        // pfn now contains physical address, shift-right by 12 discards page
         // addressing bits resulting in pfn.
         assert(*pfn == ((*pfn) & PAGE_MASK));
         *pfn >>= 12;
@@ -83,4 +83,3 @@ void invalidate_tlb(uint8_t asid) {
         }
     }
 }
-

@@ -2,8 +2,8 @@
 // Copyright 2019 Charles University
 
 #include <np/syscall.h>
-#include <stdio.h>
 #include <stdarg.h>
+#include <stdio.h>
 
 #define BUFFER_SIZE 20
 
@@ -78,7 +78,7 @@ int putchar(int c) {
 int fputs(const char* s) {
     int counter = __SYSCALL1(SYSCALL_WRITE, (unative_t)s);
 
-	return counter;
+    return counter;
 }
 
 /** Prints given string to console, terminating it with newline.
@@ -87,10 +87,10 @@ int fputs(const char* s) {
  * @return Number of printed characters.
  */
 int puts(const char* s) {
-    int counter=fputs(s);
+    int counter = fputs(s);
     putchar('\n');
 
-	return counter + 1;
+    return counter + 1;
 }
 
 /** Prints given formatted string to console.
@@ -102,7 +102,7 @@ int printf(const char* format, ...) {
     va_list args;
     va_start(args, format);
 
-	int counter = 0;
+    int counter = 0;
     char* endptr;
     bool has_width = false;
     unsigned min_width = 0;
@@ -137,31 +137,31 @@ int printf(const char* format, ...) {
             is_signed = true;
             base = 10;
             capitalize = false;
-            counter+=print_integer((uint32_t)va_arg(args, int32_t), is_signed, base,
+            counter += print_integer((uint32_t)va_arg(args, int32_t), is_signed, base,
                     has_width, min_width, capitalize, buf);
             break;
         case 's':
-            counter+=fputs(va_arg(args, const char*));
+            counter += fputs(va_arg(args, const char*));
             break;
         case 'u':
             is_signed = false;
             base = 10;
             capitalize = false;
-            counter+=print_integer(va_arg(args, uint32_t), is_signed, base, has_width,
+            counter += print_integer(va_arg(args, uint32_t), is_signed, base, has_width,
                     min_width, capitalize, buf);
             break;
         case 'X':
             is_signed = false;
             base = 16;
             capitalize = true;
-            counter+=print_integer(va_arg(args, uint32_t), is_signed, base, has_width,
+            counter += print_integer(va_arg(args, uint32_t), is_signed, base, has_width,
                     min_width, capitalize, buf);
             break;
         case 'x':
             is_signed = false;
             base = 16;
             capitalize = false;
-            counter+=print_integer(va_arg(args, uint32_t), is_signed, base, has_width,
+            counter += print_integer(va_arg(args, uint32_t), is_signed, base, has_width,
                     min_width, capitalize, buf);
             break;
         case '%':
@@ -174,7 +174,7 @@ int printf(const char* format, ...) {
     }
     va_end(args);
 
-	return counter;
+    return counter;
 }
 
 int toupper(int c) {
@@ -288,9 +288,9 @@ static int print_integer(uint32_t n, bool is_signed, base_t base,
             *cp = toupper(*cp);
         }
     }
-    int counter=fputs(buf);
+    int counter = fputs(buf);
 
-	return counter;
+    return counter;
 }
 
 static void uint32_to_str_impl(uint32_t n, char* buf, int order,

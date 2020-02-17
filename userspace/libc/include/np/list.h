@@ -301,5 +301,4 @@ static inline void list_add(link_t* add_after, link_t* item) {
     add_before->prev = item;
 }
 
-
 #endif

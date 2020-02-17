@@ -87,7 +87,7 @@ static void uint32_to_str_impl(uint32_t n, char* buf, int order,
         int base);
 
 int fputs(const char* s) {
-    const char * const base = s;
+    const char* const base = s;
     while (*s != '\0') {
         printer_putchar(*s);
         s++;

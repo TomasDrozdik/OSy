@@ -97,7 +97,7 @@ void as_destroy(as_t* as) {
     //       make use of it.
     invalidate_tlb(as->asid);
 
-    // Disable interrupts here since we are working with global memory. 
+    // Disable interrupts here since we are working with global memory.
     bool enable = interrupts_disable();
     free_asid_stack[--free_asid_stack_top] = as->asid;
     interrupts_restore(enable);
@@ -120,11 +120,9 @@ errno_t as_get_mapping(as_t* as, uintptr_t virt, uintptr_t* phys) {
     if (virt % PAGE_SIZE != 0) {
         return EINVAL;
     }
-    if (!(virt >= INITIAL_VIRTUAL_ADDRESS &&
-          virt < as->size)) {
+    if (!(virt >= INITIAL_VIRTUAL_ADDRESS && virt < as->size)) {
         return ENOENT;
     }
     *phys = as->phys + (virt - INITIAL_VIRTUAL_ADDRESS);
     return EOK;
 }
-

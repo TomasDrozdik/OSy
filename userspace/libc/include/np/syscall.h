@@ -22,9 +22,9 @@
  */
 typedef enum syscall {
     SYSCALL_EXIT,
-	SYSCALL_PUTCHAR,
+    SYSCALL_PUTCHAR,
     SYSCALL_WRITE,
-	SYSCALL_INFO,
+    SYSCALL_INFO,
     SYSCALL_LAST
 } syscall_t;
 

@@ -70,7 +70,6 @@ typedef struct thread {
     // multiple threads.
     as_t* as;
 
-
     // Thread may belong to a process. NULL means that this is kernel thread
     // which does not belong to any process.
     process_t* process;

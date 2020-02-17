@@ -4,8 +4,8 @@
 #ifndef _LIBC_STDLIB_H
 #define _LIBC_STDLIB_H
 
-#include <stddef.h>
 #include <np/types.h>
+#include <stddef.h>
 
 void exit(int status);
 void* malloc(size_t size);
