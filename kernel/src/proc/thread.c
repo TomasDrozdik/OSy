@@ -341,7 +341,7 @@ errno_t thread_kill(thread_t* thread) {
     thread->state = KILLED;
     // Release the address space since we will no longer access this thread's
     // assigned space.
-    thread_free_as(thread);
+    // thread_free_as(thread);
 
     scheduler_remove_thread(thread);
     if (thread == running_thread) {
