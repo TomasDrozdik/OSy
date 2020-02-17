@@ -39,7 +39,25 @@ static thread_t* running_thread;
 
 /** Wraps the thread_entry_function so that it always calls finish.
  */
-static void thread_entry_func_wrapper(void);
+static void thread_entry_func_wrapper(void) {
+    panic_if(running_thread == NULL,
+            "thread_entry_func_wrapper: running_thread == NULL");
+    thread_finish(running_thread->entry_func(running_thread->data));
+}
+
+/** Free address space assigned to the thread also invalidate TLB for it's ASID.
+ *
+ * @param thread Thread to free as form.
+ */
+static inline void thread_free_as(thread_t *thread) {
+    if (thread->as) {
+        as_destroy(thread->as);
+
+        // Now as as is destroyed, asssign NULL to it so that when thread is
+        // joined this would not be called again.
+        thread->as = NULL;
+    }
+}
 
 /** Initialize support for threading.
  *
@@ -64,7 +82,8 @@ void threads_init(void) {
  * @param thread_out Where to place the initialized thread_t structure.
  * @param entry Thread entry function.
  * @param data Data for the entry function.
- * @param flags Flags (unused).
+ * @param flags Flags: 0 -> KENEL thread
+ *                     1 -> USERSPACE thread
  * @param name Thread name (for debugging purposes).
  * @return Error code.
  * @retval EOK Thread was created and started (added to ready queue).
@@ -72,7 +91,7 @@ void threads_init(void) {
  * @retval INVAL Invalid flags (unused).
  */
 errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* data, unsigned int flags, const char* name) {
-    bool enable = interrupts_disable();
+    bool enable = interrupts_disable();  // Enter critical section.
 
     // Allocate enought memory thread_t structure.
     thread_t* thread = (thread_t*)kmalloc(sizeof(thread_t));
@@ -93,11 +112,19 @@ errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* da
     }
 
     // Set up thread_t structure.
+    thread->type = flags ? USERSPACE : KERNEL;
+    thread->state = READY;
     strncpy((char*)thread->name, name, THREAD_NAME_MAX_LENGTH);
+
+    thread->context = THREAD_INITIAL_CONTEXT(thread);
+    // TODO: check if there is need to init this thread->stack =
+
     thread->entry_func = entry;
     thread->data = data;
-    thread->state = READY;
-    thread->context = THREAD_INITIAL_CONTEXT(thread);
+
+    // So far thread belongs to no process, this can be changed later on with
+    // thread_assign_to_process().
+    thread->process = NULL;
 
     // Set up context
     thread->context->sp = THREAD_INITIAL_STACK_TOP(thread);
@@ -127,7 +154,8 @@ errno_t thread_create(thread_t** thread_out, thread_entry_func_t entry, void* da
  * @param thread_out Where to place the initialized thread_t structure.
  * @param entry Thread entry function.
  * @param data Data for the entry function.
- * @param flags Flags (unused).
+ * @param flags Flags: 0 -> KENEL thread
+ *                     1 -> USERSPACE thread
  * @param name Thread name (for debugging purposes).
  * @param as_size Address space size, aligned at page size (0 is correct though not very useful).
  * @return Error code.
@@ -199,16 +227,13 @@ void thread_finish(void* retval) {
 
     running_thread->state = FINISHED;
     running_thread->retval = retval;
-    if (running_thread->as != NULL) {
-        as_destroy(running_thread->as);
-    }
 
     assert(running_thread == scheduler_get_scheduled_thread());
     scheduler_remove_thread(running_thread);
     scheduler_schedule_next();
 
     // Noreturn function
-    panic_if(true, "Reached noreturn path.\n");
+    assert(0 && "Reached noreturn path.");
     while (1)
         ;
 }
@@ -260,12 +285,18 @@ errno_t thread_join(thread_t* thread, void** retval) {
         interrupts_restore(enable);
         return EINVAL;
     }
+
     while (!(thread->state == FINISHED || thread->state == KILLED)) {
         thread_yield();
     }
     if (thread->state == KILLED) {
         return EKILLED;
     }
+
+    // Release the address space since we will no longer access this thread's
+    // assigned space.
+    thread_free_as(thread);
+
     if (retval) {
         *retval = thread->retval;
     }
@@ -293,7 +324,6 @@ void thread_switch_to(thread_t* thread) {
 
     void** stack_top_new = (void**)&thread->context;
     running_thread = scheduler_get_scheduled_thread();
-    dprintk("Switching to new thread %pT\n", running_thread);
     cpu_switch_context(stack_top_old, stack_top_new, running_thread->as->asid);
 
     interrupts_restore(enable);
@@ -321,26 +351,24 @@ errno_t thread_kill(thread_t* thread) {
     bool enable = interrupts_disable();
 
     thread->state = KILLED;
-    if (thread->as != NULL) {
-        as_destroy(thread->as);
-    }
+
     scheduler_remove_thread(thread);
     if (thread == running_thread) {
-        dprintk("Replacing current runngin thread.\n");
-        scheduler_schedule_next();
-
-        // Noreturn path
-        panic_if(true, "Reached noreturn path.\n");
-        while (1)
-            ;
+        scheduler_schedule_next();  // Noreturn path
     }
 
     interrupts_restore(enable);
     return EOK;
 }
 
-static void thread_entry_func_wrapper() {
-    panic_if(running_thread == NULL,
-            "thread_entry_func_wrapper: running_thread == NULL");
-    thread_finish(running_thread->entry_func(running_thread->data));
+void thread_assign_to_process(process_t* process) {
+    // Critical section -> global runnging thread
+    bool enable = interrupts_disable();
+    panic_if(running_thread->type != USERSPACE,
+            "Assigning process to a non userspace thread.\n");
+    panic_if(running_thread->process != NULL,
+            "Assigning process to thread which already has a thread assigned.\n");
+    running_thread->process = process;
+    interrupts_restore(enable);  // End of critical section.
 }
+

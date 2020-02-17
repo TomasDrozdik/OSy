@@ -20,28 +20,27 @@
 static bool is_mapped(as_t* as, uintptr_t vpn, uintptr_t* pfn) {
     errno_t err = as_get_mapping(as, vpn << 12, pfn);
     switch (err) {
+    case EOK:
+        // pfn now contains physical address, shift-right by 12 discards page 
+        // addressing bits resulting in pfn.
+        assert(*pfn == ((*pfn) & PAGE_MASK));
+        *pfn >>= 12;
+        return true;
     case EINVAL:
         panic("TLB refill: requested virtual address not aligned to PAGE_SIZE");
         break;
     case ENOENT:
         return false;
-    case EOK:
-        assert(*pfn == ((*pfn) & PAGE_MASK));
-        *pfn >>= 12;
-        return true;
     default:
-        panic("as_get_mapping: unknown errno");
+        assert(0 && "as_get_mapping: unknown errno");
     }
-    panic("Invalid code path.");
+
+    assert(0 && "Invalid code path.");
     return false;
 }
 
 void handle_tlb_refill(context_t* context) {
     thread_t* thread = thread_get_current();
-    dprintk("\n\tThread %s"
-            "\tASID: %u\n"
-            "\tbadva: %p\n",
-            thread->name, thread->as->asid, context->badva);
 
     // Addresses for TLB numbering corrensponds to 2 PFNs.
     // virt1 corresponds to VPN2 with virt2 following.
@@ -64,8 +63,6 @@ void handle_tlb_refill(context_t* context) {
     cp0_write_entrylo1(pfn2, dirty, valid2, global);
     cp0_write_entryhi(vpn2, thread->as->asid);
     cp0_tlb_write_random();
-
-    dprintk("Complete!\n");
 }
 
 void invalidate_tlb(uint8_t asid) {
@@ -85,6 +82,5 @@ void invalidate_tlb(uint8_t asid) {
             cp0_tlb_write_indexed();
         }
     }
-    dprintk("TLB invalidated!\n");
 }
 

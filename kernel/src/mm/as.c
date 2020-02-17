@@ -74,7 +74,11 @@ size_t as_get_size(as_t* as) {
     return as->size;
 }
 
-/** Destroy given address space, freeing all the memory. */
+/** Destroy given address space, freeing all the memory. Also invalidate TLB for
+ * given as.
+ *
+ * @param as Address space to destroy.
+ */
 void as_destroy(as_t* as) {
     panic_if(as->reference_counter == 0, "Invalid value of reference counter.\n");
     if (--as->reference_counter > 0) {
@@ -85,8 +89,16 @@ void as_destroy(as_t* as) {
 
     panic_if(free_asid_stack_top == 0, "Invalid ASID stack state.\n");
 
-    bool enable = interrupts_disable();
+    // To destroy as we also need to invalidate TLB with given ASID otherwise
+    // newly created thread with the same ASID would use those mappings.
+    //
+    // Note: this does not need to be used within disabled interrupts since the
+    //       corrensponding ASID is not yet freed, hence no other thread can
+    //       make use of it.
     invalidate_tlb(as->asid);
+
+    // Disable interrupts here since we are working with global memory. 
+    bool enable = interrupts_disable();
     free_asid_stack[--free_asid_stack_top] = as->asid;
     interrupts_restore(enable);
 
@@ -110,12 +122,9 @@ errno_t as_get_mapping(as_t* as, uintptr_t virt, uintptr_t* phys) {
     }
     if (!(virt >= INITIAL_VIRTUAL_ADDRESS &&
           virt < as->size)) {
-        dprintk("Virtual address %p not in [%p, %p]\n",
-                virt, INITIAL_VIRTUAL_ADDRESS, as->size);
         return ENOENT;
     }
     *phys = as->phys + (virt - INITIAL_VIRTUAL_ADDRESS);
-    dprintk("Mapped virtual address %p to %p.\n", virt, *phys);
     return EOK;
 }
 

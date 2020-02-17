@@ -50,6 +50,7 @@ KERNEL_SOURCES = \
 	src/debug/mm.c \
 	src/exc/exc.c \
 	src/exc/handlers.S \
+	src/exc/syscall.c \
 	src/lib/print.c \
 	src/lib/runtime.c \
 	src/mm/as.c \
@@ -58,9 +59,11 @@ KERNEL_SOURCES = \
 	src/mm/tlb.c \
 	src/proc/context.S \
 	src/proc/mutex.c \
+	src/proc/process.c \
 	src/proc/scheduler.c \
 	src/proc/sem.c \
-	src/proc/thread.c
+	src/proc/thread.c \
+	src/proc/userspace.S
 
 BOOT_SOURCES = \
 	boot/loader.S
@@ -122,7 +125,7 @@ $(KERNEL_RAW): $(LINKER_SCRIPT) $(KERNEL_OBJECTS)
 ### Default patterns
 
 %.o: %.c | dir-tree
-	$(CC) $(CCFLAGS) $(KERNEL_EXTRA_CFLAGS) -MD -MF $*.dep -c -o $@ $<
+	$(CC) $(CCFLAGS) $(KERNEL_EXTRA_CFLAGS) $(SHARED_EXTRA_CFLAGS) -MD -MF $*.dep -c -o $@ $<
 
 %.o: %.S | dir-tree
 	$(CC) $(ASFLAGS) -c -o $@ $<

@@ -3,7 +3,6 @@
 
 #include <adt/list.h>
 #include <debug.h>
-#include <drivers/printer.h>
 #include <lib/print.h>
 #include <lib/stdarg.h>
 #include <proc/thread.h>
@@ -87,16 +86,19 @@ static void print_thread(thread_t* thread);
 static void uint32_to_str_impl(uint32_t n, char* buf, int order,
         int base);
 
-void fputs(const char* s) {
+int fputs(const char* s) {
+    const char * const base = s;
     while (*s != '\0') {
         printer_putchar(*s);
         s++;
     }
+    return s - base;
 }
 
-void puts(const char* s) {
-    fputs(s);
+int puts(const char* s) {
+    int count = fputs(s);
     printer_putchar('\n');
+    return count + 1;
 }
 
 void printk(const char* format, ...) {

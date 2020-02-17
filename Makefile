@@ -8,26 +8,29 @@ DIFF = diff
 
 ### Phony targets
 
-.PHONY: all clean distclean kernel run-msim-gdb run-gdb cstyle fix-cstyle test-all full run
+.PHONY: all clean distclean kernel userspace run-msim-gdb run-gdb cstyle fix-cstyle
 
-SUITE_ALL=full_suite.txt
 
 
 ### Default target
 
-all: kernel
+all: kernel userspace
 
 kernel:
 	$(MAKE) -C kernel
 
+userspace:
+	$(MAKE) -C userspace
+
 clean:
 	$(MAKE) -C kernel clean
+	$(MAKE) -C userspace clean
 
 distclean:
 	$(MAKE) -C kernel distclean
+	$(MAKE) -C userspace distclean
 	rm -f config.mk
-	rm -rf _build_kernel__*
-	@rm -f $(SUITE_ALL)
+	rm -rf _build_*
 
 run-msim-gdb:
 	msim -g $(GDB_PORT)
@@ -36,16 +39,16 @@ run-gdb:
 	$(GDB) -ix gdbinit -iex "target remote :$(GDB_PORT)"
 
 cstyle:
-	find kernel/ -name '*.[ch]' | while read fname; do clang-format -style=file "$$fname" | $(DIFF) -ud "$$fname" -; done
+	find kernel/ userspace/ -name '*.[ch]' | while read fname; do clang-format -style=file "$$fname" | $(DIFF) -ud "$$fname" -; done
 
 fix-cstyle:
-	find kernel/ -name '*.[ch]' -exec clang-format -style=file -i {} \;
+	find kernel/ userspace/ -name '*.[ch]' -exec clang-format -style=file -i {} \;
 
-$(SUITE_ALL): suite_as1.txt suite_as2.txt suite_as3.txt suite_as4.txt suite_as5.txt
-		cat $^ > $@
-
-test: $(SUITE_ALL)
-	./tools/tester.py suite $<
+test: suite_as1.txt suite_as2.txt suite_as3.txt suite_as4.txt suite_as5.txt suite_as6.txt
+	@$(eval tmp := $(shell mktemp))	
+	@cat $^ > $(tmp)
+	./tools/tester.py suite $(tmp)
+	@rm $(tmp)
 
 full: clean kernel
 
