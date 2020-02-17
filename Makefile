@@ -45,7 +45,10 @@ fix-cstyle:
 	find kernel/ userspace/ -name '*.[ch]' -exec clang-format -style=file -i {} \;
 
 test: suite_as1.txt suite_as2.txt suite_as3.txt suite_as4.txt suite_as5.txt suite_as6.txt
-	cat $^ | xargs ./tools/tester.py suite
+	@$(eval tmp := $(shell mktemp))	
+	@cat $^ > $(tmp)
+	./tools/tester.py suite $(tmp)
+	@rm $(tmp)
 
 full: clean kernel
 
