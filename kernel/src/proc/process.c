@@ -19,19 +19,19 @@
 
 #define PROCESS_ENTRYPOINT 0x00004000
 
+// TODO: make PID reusable
 static size_t next_process_id = 0;
 
 static void *process_load(void *process_ptr) {
     process_t *process = (process_t *)process_ptr;
 
-	//We switched to the correct thread, now we can assign it to the proccess.
+	// Since this is executed in userspace thread, assign the process to it.
     thread_assign_to_process(process);
 
     // First copy the binary executable image to assigned virtual memory.
     memcpy(PROCESS_ENTRYPOINT, process->image_location + PROCESS_ENTRYPOINT,
             process->image_size - PROCESS_ENTRYPOINT);
 
-	
     // Now switch context to userspace thread.
     dprintk("Executing context switch to userspace.\n");
     cpu_jump_to_userspace(PROCESS_INITIAL_STACK_TOP, PROCESS_ENTRYPOINT);
