@@ -33,33 +33,44 @@ void handle_exception_general(context_t* context) {
         dprintk("Interrupt.. cause:%u, status: %x, epc: %x\n",
                 context->cause, context->status, context->epc);
         handle_interrupt(context);
-        return;
+        break;
     case AdEL:
         dprintk("Address error exception (load or instruction fetch).. status: %x, epc: %x\n",
                 context->status, context->epc);
-        thread_kill(thread_get_current());
-        return;
+        thread_kill(thread_get_current());  // Noreturn call.
+        break;
     case TLBL:
         dprintk("TLB exception (load or instruction fetch).. status: %x, epc: %x\n",
                 context->status, context->epc);
-        thread_kill(thread_get_current());
-        return;
+        thread_kill(thread_get_current());  // Noreturn call.
+        break;
     case TLBS:
-        dprintk("TLBL / TLBS exception -> killing current thread.\n");
-        thread_kill(thread_get_current());
-        return;
-    case Sys:
-        dprintk("Syscall.. status: %x, epc: %x\n",
+        dprintk("TLB exception (store).. status: %x, epc: %x\n",
                 context->status, context->epc);
-        handle_syscall(context);
-        return;
+        thread_kill(thread_get_current());  // Noreturn call.
+        break;
+    case Sys:
+        dprintk("Syscall.. code: %d, status: %x, epc: %x\n",
+                (int)context->v0, context->status, context->epc);
+        switch (handle_syscall(context)) {
+        case EOK:
+            break;
+        case EINVAL:
+            dprintk("Invalid SYSCALL.. killing process.");
+            thread_kill(thread_get_current());  // Noreturn call.
+            break;
+        default:
+            assert(0 && "Unknown enum option.");
+        }
+        break;
     case CpU:
         dprintk("Coprocessor unsusable exception.. status: %x, epc: %x\n",
                 context->status, context->epc);
-        thread_kill(thread_get_current());
-        return;
+        thread_kill(thread_get_current());  // Noreturn call.
+        break;
     default:
-        panic("Exception...%d, status: %x, epc: %x\n", exc, context->status, context->epc);
+        panic("Exception...%d, status: %x, epc: %x\n",
+                exc, context->status, context->epc);
     }
 }
 

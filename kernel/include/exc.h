@@ -4,6 +4,7 @@
 #ifndef _EXC_H
 #define _EXC_H
 
+#include <errno.h>
 #include <proc/context.h>
 
 /** Available system calls.
@@ -18,7 +19,7 @@ typedef enum {
     SYSCALL_LAST
 } syscall_t;
 
-void handle_syscall(context_t* context);
+errno_t handle_syscall(context_t* context);
 void handle_exception_general(context_t* context);
 bool interrupts_disable(void);
 void interrupts_restore(bool enable);

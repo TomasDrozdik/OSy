@@ -14,7 +14,7 @@ static inline void syscall_exit(int exitcode) {
     // void*.
     thread_finish((void *)exitcode);
 
-    // Noreturn call.
+    // Noreturn function.
     assert(0 && "Reached noreturn path.");
     while(1)
         ;
@@ -22,19 +22,14 @@ static inline void syscall_exit(int exitcode) {
 
 // TODO: remove putchar replace with correct write see `man 2 write`
 static inline void syscall_putchar(const char c) {
-    //dprintk("Printing char.\n");
-
     putchar(c);
 }
 
 static inline unative_t syscall_write(const char* s) {
-    //dprintk("Writing to standard output\n");
 	return fputs(s);;
 }
 
 static inline unative_t syscall_get_info(np_proc_info_t* info) {
-    //dprintk("Getting info from thread.\n");
-
     thread_t* thread = thread_get_current();
     process_t* process = thread->process;
     
@@ -50,37 +45,30 @@ static inline unative_t syscall_get_info(np_proc_info_t* info) {
 	return info->id;
 }
 
-void handle_syscall(context_t* context) {
+errno_t handle_syscall(context_t* context) {
     syscall_t id = (syscall_t)(context->v0);
-    //dprintk("Handling syscall %d\n", id);
     switch (id) {
     case SYSCALL_EXIT:
-        syscall_exit((int)context->a0);
-
-        // Noreturn call.
-        assert(0 && "Reached noreturn path.");
-        while(1)
-            ;
+        syscall_exit((int)context->a0);  // Noreturn call.
         break;
     case SYSCALL_WRITE:
-        context->v0=syscall_write((char*)context->a0);
-        //dprintk("Write succesfull.\n");
+        context->v0 = syscall_write((char*)context->a0);
 		break;
 	case SYSCALL_PUTCHAR:
         syscall_putchar((char)context->a0);
-        //dprintk("Putchar successfull.\n");
 		break;
     case SYSCALL_INFO:
-        context->v0=syscall_get_info((np_proc_info_t*)context->a0);
-        //dprintk("Got info successfully.\n");
+        context->v0 = syscall_get_info((np_proc_info_t*)context->a0);
 		break;
     default:
-        printk("Invalid syscall: %d.\n", id);
+        dprintk("Invalid syscall: %d.\n", id);
+        return EINVAL;
     }
 
     // Upon sucess, shift EPC by 4 to move to the next instruction
     // (unlike e.g. TLBL, we do not want to restart it).
     //dprintk("Shifting epc.\n");
     context->epc += 4;
+    return EOK;
 }
 
