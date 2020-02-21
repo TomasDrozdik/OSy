@@ -21,7 +21,6 @@
 
 static void handle_interrupt(context_t* context) {
     if (cp0_cause_is_interrupt_pending(context->cause, CLK)) {
-        timer_interrupt_after(CYCLES);
         scheduler_schedule_next();
     }
 }

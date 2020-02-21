@@ -181,6 +181,7 @@ void scheduler_schedule_next(void) {
     }
 
     assert(scheduled_thread->state == READY);
+    timer_interrupt_after(CYCLES);
     thread_switch_to(scheduled_thread);
 
     interrupts_restore(enable);
