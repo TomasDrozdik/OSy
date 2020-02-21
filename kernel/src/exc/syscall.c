@@ -26,7 +26,6 @@ static inline void syscall_putchar(const char c) {
 
 static inline unative_t syscall_write(const char* s) {
     return fputs(s);
-    ;
 }
 
 static inline unative_t syscall_get_info(np_proc_info_t* info) {
