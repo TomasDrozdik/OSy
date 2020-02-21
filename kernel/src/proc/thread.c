@@ -290,6 +290,7 @@ errno_t thread_join(thread_t* thread, void** retval) {
         thread_yield();
     }
     if (thread->state == KILLED) {
+        interrupts_restore(enable);
         return EKILLED;
     }
 
